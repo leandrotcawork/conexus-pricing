@@ -97,7 +97,7 @@
   },
   "overrides": [
     {
-      "includes": ["src/banco/conexao.ts"],
+      "includes": ["src/plataformas/**", "!**/*.test.ts"],
       "linter": {
         "rules": {
           "style": {
@@ -105,10 +105,57 @@
               "level": "error",
               "options": {
                 "paths": {
+                  "pg": "Only src/banco/conexao.ts imports pg (data D19).",
+                  "@neon/functions": "Only src/banco/conexao.ts imports @neon/functions (data D19).",
                   "@crawlee/http": "Only src/coleta/http.ts imports Crawlee (code C56).",
                   "@modelcontextprotocol/server": "Only src/mcp/ imports the MCP server SDK.",
                   "oracledb": "Only scripts/carga-catalogo.ts imports oracledb."
-                }
+                },
+                "patterns": [
+                  {
+                    "group": [
+                      "../**/banco/**",
+                      "../**/coleta/**",
+                      "../**/mcp/**",
+                      "../**/funcoes/**",
+                      "../**/config.ts",
+                      "../**/scripts/**"
+                    ],
+                    "message": "src/plataformas/ imports only dominio/ and its own files (section 5)."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/coleta/**", "!**/*.test.ts", "!src/coleta/http.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "pg": "Only src/banco/conexao.ts imports pg (data D19).",
+                  "@neon/functions": "Only src/banco/conexao.ts imports @neon/functions (data D19).",
+                  "@crawlee/http": "Only src/coleta/http.ts imports Crawlee (code C56).",
+                  "@modelcontextprotocol/server": "Only src/mcp/ imports the MCP server SDK.",
+                  "oracledb": "Only scripts/carga-catalogo.ts imports oracledb."
+                },
+                "patterns": [
+                  {
+                    "group": [
+                      "../**/mcp/**",
+                      "../**/funcoes/**",
+                      "../**/config.ts",
+                      "../**/scripts/**"
+                    ],
+                    "message": "src/coleta/ imports only dominio/, plataformas/, banco/ and its own files (section 5)."
+                  }
+                ]
               }
             }
           }
@@ -128,7 +175,18 @@
                   "@neon/functions": "Only src/banco/conexao.ts imports @neon/functions (data D19).",
                   "@modelcontextprotocol/server": "Only src/mcp/ imports the MCP server SDK.",
                   "oracledb": "Only scripts/carga-catalogo.ts imports oracledb."
-                }
+                },
+                "patterns": [
+                  {
+                    "group": [
+                      "../**/mcp/**",
+                      "../**/funcoes/**",
+                      "../**/config.ts",
+                      "../**/scripts/**"
+                    ],
+                    "message": "src/coleta/ imports only dominio/, plataformas/, banco/ and its own files (section 5)."
+                  }
+                ]
               }
             }
           }
@@ -136,7 +194,73 @@
       }
     },
     {
-      "includes": ["src/mcp/**"],
+      "includes": ["src/banco/**", "!**/*.test.ts", "!src/banco/conexao.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "pg": "Only src/banco/conexao.ts imports pg (data D19).",
+                  "@neon/functions": "Only src/banco/conexao.ts imports @neon/functions (data D19).",
+                  "@crawlee/http": "Only src/coleta/http.ts imports Crawlee (code C56).",
+                  "@modelcontextprotocol/server": "Only src/mcp/ imports the MCP server SDK.",
+                  "oracledb": "Only scripts/carga-catalogo.ts imports oracledb."
+                },
+                "patterns": [
+                  {
+                    "group": [
+                      "../**/plataformas/**",
+                      "../**/coleta/**",
+                      "../**/mcp/**",
+                      "../**/funcoes/**",
+                      "../**/config.ts",
+                      "../**/scripts/**"
+                    ],
+                    "message": "src/banco/ imports only dominio/ and its own files (section 5)."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/banco/conexao.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@crawlee/http": "Only src/coleta/http.ts imports Crawlee (code C56).",
+                  "@modelcontextprotocol/server": "Only src/mcp/ imports the MCP server SDK.",
+                  "oracledb": "Only scripts/carga-catalogo.ts imports oracledb."
+                },
+                "patterns": [
+                  {
+                    "group": [
+                      "../**/plataformas/**",
+                      "../**/coleta/**",
+                      "../**/mcp/**",
+                      "../**/funcoes/**",
+                      "../**/config.ts",
+                      "../**/scripts/**"
+                    ],
+                    "message": "src/banco/ imports only dominio/ and its own files (section 5)."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/mcp/**", "!**/*.test.ts"],
       "linter": {
         "rules": {
           "style": {
@@ -148,7 +272,53 @@
                   "@neon/functions": "Only src/banco/conexao.ts imports @neon/functions (data D19).",
                   "@crawlee/http": "Only src/coleta/http.ts imports Crawlee (code C56).",
                   "oracledb": "Only scripts/carga-catalogo.ts imports oracledb."
-                }
+                },
+                "patterns": [
+                  {
+                    "group": [
+                      "../**/plataformas/**",
+                      "../**/coleta/**",
+                      "../**/funcoes/**",
+                      "../**/config.ts",
+                      "../**/scripts/**",
+                      "../**/banco/**",
+                      "!../**/banco/leituras.ts"
+                    ],
+                    "message": "src/mcp/ imports only dominio/, banco/leituras.ts and its own files (section 5)."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/funcoes/**", "!**/*.test.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "pg": "Only src/banco/conexao.ts imports pg (data D19).",
+                  "@neon/functions": "Only src/banco/conexao.ts imports @neon/functions (data D19).",
+                  "@crawlee/http": "Only src/coleta/http.ts imports Crawlee (code C56).",
+                  "@modelcontextprotocol/server": "Only src/mcp/ imports the MCP server SDK.",
+                  "oracledb": "Only scripts/carga-catalogo.ts imports oracledb."
+                },
+                "patterns": [
+                  {
+                    "group": [
+                      "../**/dominio/**",
+                      "../**/plataformas/**",
+                      "../**/banco/**",
+                      "../**/scripts/**"
+                    ],
+                    "message": "src/funcoes/ imports only config.ts, coleta/, mcp/ and its own files (section 5)."
+                  }
+                ]
               }
             }
           }
@@ -168,7 +338,19 @@
                   "@neon/functions": "Only src/banco/conexao.ts imports @neon/functions (data D19).",
                   "@crawlee/http": "Only src/coleta/http.ts imports Crawlee (code C56).",
                   "@modelcontextprotocol/server": "Only src/mcp/ imports the MCP server SDK."
-                }
+                },
+                "patterns": [
+                  {
+                    "group": [
+                      "../**/plataformas/**",
+                      "../**/coleta/**",
+                      "../**/mcp/**",
+                      "../**/funcoes/**",
+                      "../**/config.ts"
+                    ],
+                    "message": "scripts/carga-catalogo.ts imports only dominio/ and banco/ (section 5)."
+                  }
+                ]
               }
             }
           }
@@ -191,6 +373,26 @@
                 ]
               }
             }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/config.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noProcessEnv": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/funcoes/*.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noDefaultExport": "off"
           }
         }
       }

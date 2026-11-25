@@ -83,6 +83,11 @@ describe('preço nunca é zero nem negativo', () => {
     assert.equal(centavosDeReais(Number.POSITIVE_INFINITY), null)
   })
 
+  test('centavosDeReais recusa o que arredonda para zero centavo ou estoura o inteiro', () => {
+    assert.equal(centavosDeReais(0.004), null)
+    assert.equal(centavosDeReais(1e307), null)
+  })
+
   test('centavosDeReais converte reais em ponto flutuante sem perder o centavo', () => {
     assert.equal(centavosDeReais(19.9), 1990)
     assert.equal(centavosDeReais(0.1 + 0.2), 30)

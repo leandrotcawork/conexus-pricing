@@ -37,7 +37,11 @@ e E2; este arquivo ganha os comandos quando elas chegarem.
 Um pacote só, `src/` dividido em pastas com dono. As paredes entre elas são regras do Biome
 (`noRestrictedImports` em `biome.json`): `pg` e `@neon/functions` só em `src/banco/conexao.ts`,
 `@crawlee/http` só em `src/coleta/http.ts`, `@modelcontextprotocol/server` só em `src/mcp/`,
-`oracledb` só em `scripts/carga-catalogo.ts`, e `src/dominio/` importa só `zod`.
+`oracledb` só em `scripts/carga-catalogo.ts`, e `src/dominio/` importa só `zod`. Entre as pastas,
+cada uma importa só os seus arquivos e: `src/plataformas/` e `src/banco/`, `dominio/`;
+`src/coleta/`, `dominio/`, `plataformas/` e `banco/`; `src/mcp/`, `dominio/` e `banco/leituras.ts`;
+`src/funcoes/`, `config.ts`, `coleta/` e `mcp/`; `scripts/carga-catalogo.ts`, `dominio/` e `banco/`.
+Os testes (`*.test.ts`) ficam fora das paredes entre pastas, porque entram pelas portas públicas.
 
 As regras de código herdadas do Conexus estão em [`docs/regras.md`](docs/regras.md). As instruções
 para agentes, e as cinco skills do método (`pricing-study`, `pricing-scope`, `pricing-build`,

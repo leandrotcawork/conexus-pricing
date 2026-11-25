@@ -26,8 +26,8 @@ export type FonteId = z.infer<typeof FonteId>
 export const Centavos = z.number().int().positive().brand<'Centavos'>()
 export type Centavos = z.infer<typeof Centavos>
 
-/** null para zero, negativo ou não finito: "preço zero" é ausência, nunca preço (code C22). */
+/** null se o valor não arredonda para centavos positivos: preço zero é ausência (code C22). */
 export function centavosDeReais(reais: number): Centavos | null {
-  if (!Number.isFinite(reais) || reais <= 0) return null
-  return Centavos.parse(Math.round(reais * 100))
+  const centavos = Centavos.safeParse(Math.round(reais * 100))
+  return centavos.success ? centavos.data : null
 }
