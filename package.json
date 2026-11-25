@@ -12,6 +12,7 @@
     "migrar": "node --env-file-if-exists=.env.local scripts/migrar.ts"
   },
   "dependencies": {
+    "@crawlee/http": "3.18.2",
     "@neon/functions": "0.11.0",
     "drizzle-orm": "1.0.0-rc.4",
     "pg": "8.23.1",

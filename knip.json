@@ -1,4 +1,5 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "entry": ["src/**/*.check.ts", "scripts/*.ts"]
+  "entry": ["src/**/*.check.ts", "scripts/*.ts"],
+  "ignoreBinaries": ["openssl"]
 }
