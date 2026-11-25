@@ -388,7 +388,7 @@
       }
     },
     {
-      "includes": ["src/funcoes/*.ts", "drizzle.config.ts"],
+      "includes": ["src/funcoes/*.ts", "drizzle.config.ts", "neon.ts"],
       "linter": {
         "rules": {
           "style": {

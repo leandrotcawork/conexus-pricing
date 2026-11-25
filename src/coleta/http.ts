@@ -1,3 +1,4 @@
+import { totalmem } from 'node:os'
 import type { HttpCrawlerOptions } from '@crawlee/http'
 import { Configuration, HttpCrawler, NonRetryableError } from '@crawlee/http'
 import type { PedidoHttp, RespostaHttp } from '../plataformas/contrato.ts'
@@ -117,15 +118,22 @@ function opcoesDaLoja(
   }
 }
 
+function configuracao(): Configuration {
+  return new Configuration({
+    // fila e sessão só em memória: a função não tem disco, e cada chamada fica isolada
+    persistStorage: false,
+    // sem o teto declarado o Crawlee roda `ps` ao começar, e onde não há `ps` nada é buscado
+    memoryMbytes: Math.floor(totalmem() / 1024 / 1024),
+    // cada medida que falha sem `ps` vira uma linha de erro no log: uma por minuto, não por segundo
+    systemInfoIntervalMillis: 60_000,
+  })
+}
+
 export function clienteCrawlee(opcoes: OpcoesDoCliente): ClienteHttp {
   return {
     async buscar(pedidos, aoResponder) {
       const entrega = criarEntrega(aoResponder, (): void => crawler.stop())
-      // fila e sessão só em memória: a função não tem disco, e cada chamada fica isolada
-      const crawler = new HttpCrawler(
-        opcoesDaLoja(opcoes, entrega.entregar),
-        new Configuration({ persistStorage: false }),
-      )
+      const crawler = new HttpCrawler(opcoesDaLoja(opcoes, entrega.entregar), configuracao())
       await crawler.run(
         pedidos.map((pedido, indice) => ({
           url: pedido.url,

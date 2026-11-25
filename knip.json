@@ -1,5 +1,12 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "entry": ["src/**/*.check.ts", "scripts/*.ts"],
-  "ignoreBinaries": ["openssl"]
+  "entry": [
+    "src/**/*.check.ts",
+    "src/**/*.fixture.ts",
+    "src/funcoes/*.ts",
+    "scripts/*.ts",
+    "neon.ts"
+  ],
+  "ignoreBinaries": ["openssl"],
+  "ignoreDependencies": ["neon"]
 }
