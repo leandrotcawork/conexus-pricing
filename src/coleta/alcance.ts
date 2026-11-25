@@ -34,6 +34,8 @@ async function alcancar(loja: keyof Alvos, pedido: PedidoHttp): Promise<Alcance>
     tentativas: 0,
     prazoPedidoMs: 25_000,
     esperaMaximaMs: 0,
+    tetoBytes: 10 * 1024 * 1024,
+    prazoFinal: new Date(Date.now() + 60_000),
   })
   let alcance: Alcance = { loja, status: null, ms: 0, falha: 'pedido sem resposta' }
   await cliente.buscar([pedido], async (_, resultado) => {

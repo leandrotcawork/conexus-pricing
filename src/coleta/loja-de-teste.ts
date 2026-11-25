@@ -14,7 +14,7 @@ type PedidoRecebido = {
 type Roteada = {
   readonly status: number
   readonly cabecalhos?: Readonly<Record<string, string>>
-  readonly corpo?: string
+  readonly corpo?: string | Uint8Array
   readonly atrasoMs?: number
 }
 

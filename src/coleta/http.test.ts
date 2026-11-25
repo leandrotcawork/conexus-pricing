@@ -5,12 +5,20 @@ import { createServer } from 'node:https'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, describe, test } from 'node:test'
+import { gzipSync } from 'node:zlib'
 import type { PedidoHttp } from '../plataformas/contrato.ts'
 import type { ResultadoHttp } from './http.ts'
 import { clienteCrawlee } from './http.ts'
 import { abrirLojaDeTeste, escutar, fecharServidor } from './loja-de-teste.ts'
 
-const OPCOES = { porMinuto: 6000, tentativas: 1, prazoPedidoMs: 5000, esperaMaximaMs: 60_000 }
+const OPCOES = {
+  porMinuto: 6000,
+  tentativas: 1,
+  prazoPedidoMs: 5000,
+  esperaMaximaMs: 60_000,
+  tetoBytes: 1_000_000,
+  prazoFinal: new Date(Date.now() + 600_000),
+}
 
 function get(url: string): PedidoHttp {
   return { url, metodo: 'GET', cabecalhos: {}, corpo: null }
@@ -179,5 +187,146 @@ describe('uma loja, uma conexão, uma identidade', () => {
       loja.pedidos.map((p) => p.caminho),
       ['/a'],
     )
+  })
+})
+
+describe('uma identidade por cliente, em todas as chamadas', () => {
+  test('chamadas seguidas mantêm o navegador e os cookies', async () => {
+    await using loja = await abrirLojaDeTeste(({ caminho }) =>
+      caminho === '/0'
+        ? { status: 200, cabecalhos: { 'set-cookie': 'visita=1; Path=/' } }
+        : { status: 200 },
+    )
+    const cliente = clienteCrawlee(OPCOES)
+    for (let chamada = 0; chamada < 8; chamada++) {
+      await cliente.buscar([get(loja.url(`/${chamada}`))], async () => undefined)
+    }
+    assert.equal(loja.pedidos.length, 8)
+    assert.equal(new Set(loja.pedidos.map((p) => p.cabecalhos['user-agent'])).size, 1)
+    assert.deepEqual(
+      loja.pedidos.map((p) => p.cabecalhos.cookie),
+      [undefined, ...Array.from({ length: 7 }, () => 'visita=1')],
+    )
+  })
+
+  test('o mesmo pedido é feito de novo numa segunda chamada', async () => {
+    await using loja = await abrirLojaDeTeste(() => ({ status: 200 }))
+    const cliente = clienteCrawlee(OPCOES)
+    const respondidos: number[] = []
+    for (let chamada = 0; chamada < 2; chamada++) {
+      await cliente.buscar([get(loja.url('/a'))], async (indice) => {
+        respondidos.push(indice)
+      })
+    }
+    assert.deepEqual(respondidos, [0, 0])
+    assert.equal(loja.pedidos.length, 2)
+  })
+
+  test('uma segunda chamada ao mesmo tempo é recusada', async () => {
+    await using loja = await abrirLojaDeTeste(() => ({ status: 200 }))
+    const cliente = clienteCrawlee(OPCOES)
+    const primeira = cliente.buscar([get(loja.url('/a'))], async () => undefined)
+    await assert.rejects(
+      cliente.buscar([get(loja.url('/b'))], async () => undefined),
+      /já está numa chamada/,
+    )
+    await primeira
+  })
+})
+
+describe('teto de bytes por resposta', () => {
+  const teto = { ...OPCOES, tetoBytes: 1000 }
+  const latim = { 'content-type': 'application/json; charset=ISO-8859-1' }
+  const casos = [
+    { nome: 'corpo grande', roteada: { status: 200, corpo: 'a'.repeat(1001) } },
+    {
+      nome: 'corpo comprimido pequeno que descomprime grande',
+      roteada: {
+        status: 200,
+        cabecalhos: { ...latim, 'content-encoding': 'gzip' },
+        corpo: gzipSync('a'.repeat(200_000)),
+      },
+    },
+    { nome: 'corpo grande de um erro 500', roteada: { status: 500, corpo: 'a'.repeat(5000) } },
+  ]
+
+  for (const { nome, roteada } of casos) {
+    test(`${nome} falha sem repetir`, async () => {
+      await using loja = await abrirLojaDeTeste(() => roteada)
+      const [resultado] = await buscar([get(loja.url('/a'))], teto)
+      assert.ok(resultado?.tipo === 'FALHOU')
+      assert.match(resultado.detalhe, /teto de 1000 bytes/)
+      assert.equal(loja.pedidos.length, 1)
+    })
+  }
+
+  test('um corpo no limite chega inteiro, descomprimido e em UTF-8', async () => {
+    const corpo = 'ç'.repeat(1000)
+    await using loja = await abrirLojaDeTeste(() => ({
+      status: 200,
+      cabecalhos: { ...latim, 'content-encoding': 'gzip' },
+      corpo: gzipSync(Buffer.from(corpo, 'latin1')),
+    }))
+    const [resultado] = await buscar([get(loja.url('/a'))], teto)
+    assert.ok(resultado?.tipo === 'RESPONDEU')
+    assert.equal(resultado.resposta.corpo, corpo)
+  })
+})
+
+describe('prazo final', () => {
+  function ate(ms: number) {
+    return { ...OPCOES, prazoFinal: new Date(Date.now() + ms) }
+  }
+
+  test('nenhum pedido começa depois do prazo, e o que sobrou não vira resposta', async () => {
+    await using loja = await abrirLojaDeTeste(() => ({ status: 200, atrasoMs: 150 }))
+    const pedidos = Array.from({ length: 30 }, (_, indice) => get(loja.url(`/${indice}`)))
+    const limite = performance.now() + 600
+    const resultados = await buscar(pedidos, ate(600))
+    assert.ok(loja.pedidos.length >= 1 && loja.pedidos.length < 10)
+    assert.ok(loja.pedidos.every((p) => p.em <= limite + 20))
+    assert.equal(resultados.filter((r) => r !== undefined).length, loja.pedidos.length)
+  })
+
+  test('com o prazo vencido nada é pedido', async () => {
+    await using loja = await abrirLojaDeTeste(() => ({ status: 200 }))
+    assert.deepEqual(resumo(await buscar([get(loja.url('/a'))], ate(-1))), ['sem resposta'])
+    assert.equal(loja.pedidos.length, 0)
+  })
+
+  test('com o alarme atrasado, o pedido seguinte não sai nem vira falha', async () => {
+    await using loja = await abrirLojaDeTeste(() => ({ status: 200 }))
+    const opcoes = ate(300)
+    const respondidos: number[] = []
+    const pedidos = [get(loja.url('/a')), get(loja.url('/b'))]
+    await clienteCrawlee(opcoes).buscar(pedidos, async (indice) => {
+      respondidos.push(indice)
+      // segura o processo inteiro além do prazo: nenhum temporizador toca nesse intervalo
+      const espera = Math.max(0, opcoes.prazoFinal.getTime() - Date.now()) + 20
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, espera)
+    })
+    assert.equal(loja.pedidos.length, 1)
+    assert.deepEqual(respondidos, [0])
+  })
+
+  test('a espera do limite por minuto não passa do prazo', async () => {
+    await using loja = await abrirLojaDeTeste(() => ({ status: 200 }))
+    const pedidos = Array.from({ length: 5 }, (_, indice) => get(loja.url(`/${indice}`)))
+    const inicio = performance.now()
+    await buscar(pedidos, { ...ate(800), porMinuto: 2 })
+    assert.ok(performance.now() - inicio < 5000)
+    assert.equal(loja.pedidos.length, 2)
+  })
+
+  test('um Retry-After além do prazo não é esperado nem repetido', async () => {
+    await using loja = await abrirLojaDeTeste(() => ({
+      status: 429,
+      cabecalhos: { 'retry-after': '600' },
+    }))
+    const inicio = performance.now()
+    const resultados = await buscar([get(loja.url('/a'))], ate(500))
+    assert.ok(performance.now() - inicio < 5000)
+    assert.deepEqual(resumo(resultados), ['sem resposta'])
+    assert.equal(loja.pedidos.length, 1)
   })
 })
