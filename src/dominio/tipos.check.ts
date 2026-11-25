@@ -65,6 +65,7 @@ export function rotuloDeCadaSituacao(
     case 'LOTE_REFEITO_UM_A_UM':
     case 'QUEDA_DE_OK':
     case 'PRAZO_ESGOTADO':
+    case 'CONFIG_INVALIDA':
       return aviso.tipo
     default:
       return aviso satisfies never

@@ -15,10 +15,7 @@ export default defineConfig({
       name: 'coleta de precos',
       source: 'src/funcoes/coleta.ts',
       bundler: empacotarComCrawlee,
-      env: {
-        COLETOR_DATABASE_URL: obrigatoria(valores.coletorUrl),
-        ALCANCE_TOKEN: obrigatoria(valores.tokenDeAlcance),
-      },
+      env: { COLETOR_DATABASE_URL: obrigatoria(valores.coletorUrl) },
     },
     mcp: {
       name: 'mcp de precos',

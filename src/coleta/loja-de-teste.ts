@@ -1,7 +1,14 @@
+import { readFileSync } from 'node:fs'
 import type { IncomingHttpHeaders, Server } from 'node:http'
 import { createServer } from 'node:http'
 import { text } from 'node:stream/consumers'
 import { setTimeout as esperar } from 'node:timers/promises'
+import type { Plataforma } from '../dominio/fonte.ts'
+import type { RespostaHttp } from '../plataformas/contrato.ts'
+import type { Caso } from '../plataformas/gravacao.ts'
+import { lerGravacao } from '../plataformas/gravacao.ts'
+import type { ClienteHttp } from './http.ts'
+import { clienteCrawlee } from './http.ts'
 
 type PedidoRecebido = {
   readonly caminho: string
@@ -13,7 +20,7 @@ type PedidoRecebido = {
 
 type Roteada = {
   readonly status: number
-  readonly cabecalhos?: Readonly<Record<string, string>>
+  readonly cabecalhos?: RespostaHttp['cabecalhos']
   readonly corpo?: string | Uint8Array
   readonly atrasoMs?: number
 }
@@ -65,4 +72,48 @@ export async function abrirLojaDeTeste(roteiro: Roteiro) {
       await fecharServidor(servidor)
     },
   }
+}
+
+/**
+ * O cliente de verdade, com cada pedido desviado para a loja de teste: a origem que o adaptador
+ * pediu segue no cabeçalho `x-origem`. A config das lojas continua só aceitando HTTPS.
+ */
+export function clienteNaLojaDeTeste(
+  base: string,
+  opcoes: { readonly prazoMs?: number } = {},
+): ClienteHttp {
+  const cliente = clienteCrawlee({
+    porMinuto: 60_000,
+    tentativas: 1,
+    prazoPedidoMs: 10_000,
+    esperaMaximaMs: 1000,
+    tetoBytes: 10 * 1024 * 1024,
+    prazoFinal: new Date(Date.now() + (opcoes.prazoMs ?? 60_000)),
+  })
+  return {
+    buscar(pedidos, aoResponder) {
+      const desviados = pedidos.map((pedido) => {
+        const { origin, pathname, search } = new URL(pedido.url)
+        const url = new URL(`${pathname}${search}`, base).href
+        return { ...pedido, url, cabecalhos: { ...pedido.cabecalhos, 'x-origem': origin } }
+      })
+      return cliente.buscar(desviados, aoResponder)
+    },
+  }
+}
+
+const PLATAFORMA_DA_ORIGEM: Readonly<Record<string, Plataforma>> = {
+  'https://www.telhanorte.com.br': 'vtex',
+  'https://www.condec.com.br': 'tray',
+  'https://www.abcdaconstrucao.com.br': 'wake',
+  'https://storefront-api.fbits.net': 'wake',
+}
+
+/** Responde como a loja pedida respondeu quando foi gravada. A home da Wake é o preparo. */
+export function comGravacao(pedido: PedidoRecebido, caso: Caso = 'lote'): Roteada {
+  const plataforma = PLATAFORMA_DA_ORIGEM[String(pedido.cabecalhos['x-origem'])]
+  if (!plataforma) return { status: 404 }
+  const gravado = plataforma === 'wake' && pedido.metodo === 'GET' ? 'preparo' : caso
+  const arquivo = new URL(`../plataformas/${plataforma}/gravacoes/${gravado}.txt`, import.meta.url)
+  return lerGravacao(readFileSync(arquivo, 'utf8'))
 }

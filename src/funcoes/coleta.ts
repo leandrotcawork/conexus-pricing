@@ -1,42 +1,72 @@
-import { createHash, timingSafeEqual } from 'node:crypto'
-import type { Alvos } from '../coleta/alcance.ts'
-import { alcancarLojas, PedidoDeAlcance } from '../coleta/alcance.ts'
-import { saudeDaColeta } from '../coleta/saude.ts'
+import { z } from 'zod'
+import { criarColetor } from '../coleta/coletor.ts'
+import type { ResultadoRodada } from '../coleta/executar.ts'
+import type { ClienteHttp } from '../coleta/http.ts'
 import { configDaColeta } from '../config.ts'
 import { naoEncontrado, respostaDeSaude } from './saude.ts'
 
-function resumo(texto: string): Buffer {
-  return createHash('sha256').update(texto).digest()
-}
+/** O que o gatilho agendado do Neon envia; `scheduled_at` se repete quando ele reentrega. */
+const EnvelopeAgendado = z.object({
+  version: z.literal(1),
+  invocation_id: z.string().min(1),
+  trigger: z.object({ type: z.literal('schedule'), id: z.string(), name: z.string() }),
+  data: z.object({ scheduled_at: z.iso.datetime({ offset: true }) }),
+})
 
-/** Comparação em tempo constante: a URL da função é pública. */
-function autorizado(pedido: Request, token: string): boolean {
-  const recebido = pedido.headers.get('authorization') ?? ''
-  return timingSafeEqual(resumo(recebido), resumo(`Bearer ${token}`))
-}
+/** O maior intervalo que o Neon aceita num `Retry-After`. */
+const REENTREGAR_EM_SEGUNDOS = '900'
 
-async function responderAlcance(pedido: Request, alvos: Alvos | undefined): Promise<Response> {
-  const corpo: unknown = await pedido.json().catch(() => null)
-  const lido = PedidoDeAlcance.safeParse(corpo)
-  if (!lido.success) {
-    return Response.json({ erro: 'corpo precisa de ean e tokenAbc' }, { status: 400 })
+/** 2xx encerra a entrega; 503 pede outra mais tarde. */
+function responder(resultado: ResultadoRodada): Response {
+  switch (resultado.tipo) {
+    case 'FECHADA':
+    case 'JA_CONCLUIDA':
+    case 'FONTE_INATIVA':
+      return Response.json(resultado)
+    case 'EM_ANDAMENTO':
+    case 'INTERROMPIDA':
+      return Response.json(resultado, {
+        status: 503,
+        headers: { 'retry-after': REENTREGAR_EM_SEGUNDOS },
+      })
+    case 'FONTE_DESCONHECIDA':
+      return Response.json(resultado, { status: 404 })
+    case 'CONFIG_INVALIDA':
+      return Response.json(resultado, { status: 500 })
+    default:
+      return resultado satisfies never
   }
-  return Response.json({ lojas: await alcancarLojas(lido.data, alvos) })
 }
 
-/** `alvos` troca os endereços das lojas, para o teste responder no lugar delas. */
-export function criarFuncaoColeta(config: ReturnType<typeof configDaColeta>, alvos?: Alvos) {
-  const saude = saudeDaColeta(config.urlDoBanco)
+/** `criarHttp` troca o cliente de cada rodada, para o teste responder no lugar das lojas. */
+export function criarFuncaoColeta(
+  config: ReturnType<typeof configDaColeta>,
+  criarHttp?: () => ClienteHttp,
+) {
+  const coletor = criarColetor(config.urlDoBanco, criarHttp)
+
+  async function rodar(pedido: Request, codigo: string): Promise<Response> {
+    // a URL é pública, mas o Neon apaga os cabeçalhos X-Neon-* de quem vem de fora
+    if (!pedido.headers.get('x-neon-trigger-invocation-id')) {
+      return Response.json({ erro: 'só o gatilho do Neon roda a coleta' }, { status: 401 })
+    }
+    const envelope = EnvelopeAgendado.safeParse(await pedido.json().catch(() => null))
+    if (!envelope.success) {
+      return Response.json({ erro: 'envelope de agendamento inválido' }, { status: 400 })
+    }
+    const agendadaPara = new Date(envelope.data.data.scheduled_at)
+    return responder(await coletor.rodar({ codigo, agendadaPara }))
+  }
+
   return {
     async fetch(pedido: Request): Promise<Response> {
-      const rota = `${pedido.method} ${new URL(pedido.url).pathname}`
-      if (rota === 'GET /') return respostaDeSaude(await saude())
-      // o `_` impede colisão com o código de uma loja
-      if (rota !== 'POST /_alcance') return naoEncontrado()
-      if (!autorizado(pedido, config.tokenDeAlcance)) {
-        return Response.json({ erro: 'token ausente ou errado' }, { status: 401 })
+      const { pathname } = new URL(pedido.url)
+      if (pedido.method === 'GET' && pathname === '/') {
+        return respostaDeSaude(await coletor.saude())
       }
-      return await responderAlcance(pedido, alvos)
+      // uma rota por loja: o caminho é o código dela
+      if (pedido.method !== 'POST' || pathname === '/') return naoEncontrado()
+      return await rodar(pedido, pathname.slice(1))
     },
   }
 }

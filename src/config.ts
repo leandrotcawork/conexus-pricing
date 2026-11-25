@@ -3,10 +3,7 @@ import { z } from 'zod'
 const UrlDoBanco = z.url({ protocol: /^postgres(ql)?$/ })
 type Ambiente = Readonly<Record<string, string | undefined>>
 
-const AmbienteDaColeta = z.object({
-  COLETOR_DATABASE_URL: UrlDoBanco,
-  ALCANCE_TOKEN: z.string().min(32),
-})
+const AmbienteDaColeta = z.object({ COLETOR_DATABASE_URL: UrlDoBanco })
 
 const AmbienteDoMcp = z.object({ LEITOR_DATABASE_URL: UrlDoBanco })
 
@@ -24,8 +21,7 @@ function ler<T>(esquema: z.ZodType<T>, ambiente: Ambiente): T {
 }
 
 export function configDaColeta(ambiente: Ambiente = process.env) {
-  const lido = ler(AmbienteDaColeta, ambiente)
-  return { urlDoBanco: lido.COLETOR_DATABASE_URL, tokenDeAlcance: lido.ALCANCE_TOKEN }
+  return { urlDoBanco: ler(AmbienteDaColeta, ambiente).COLETOR_DATABASE_URL }
 }
 
 export function configDoMcp(ambiente: Ambiente = process.env) {
@@ -46,7 +42,6 @@ export function valoresDaPublicacao(ambiente: Ambiente = process.env) {
   return {
     coletorUrl: ambiente.COLETOR_DATABASE_URL,
     leitorUrl: ambiente.LEITOR_DATABASE_URL,
-    tokenDeAlcance: ambiente.ALCANCE_TOKEN,
   }
 }
 

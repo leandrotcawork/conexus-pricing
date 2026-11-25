@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { z } from 'zod'
+import type { Banco } from './conexao.ts'
 import { abrirBanco } from './conexao.ts'
 import { ROLES } from './roles.ts'
 
@@ -11,7 +12,10 @@ const Sessao = z.tuple([z.object({ um: z.literal(1), role: z.string() })])
 
 /** Abre o pool uma vez; cada chamada faz um SELECT 1 e confere com que role entrou. */
 export function saudeDoBanco(url: string, papel: keyof typeof ROLES) {
-  const banco = abrirBanco(url)
+  return saudeDe(abrirBanco(url), papel)
+}
+
+export function saudeDe(banco: Banco, papel: keyof typeof ROLES) {
   const esperada = ROLES[papel]
   return async function conferir(): Promise<EstadoDoBanco> {
     try {
