@@ -50,7 +50,8 @@ function esperaPedidaMs(valor: string | undefined, maximoMs: number): number | u
 }
 
 function emTexto(cabecalhos: NodeJS.Dict<string | string[]>): RespostaHttp['cabecalhos'] {
-  const pares = Object.entries(cabecalhos)
+  // o HTTP/2 traz `:status` como número entre os cabeçalhos, e o status já vai à parte
+  const pares = Object.entries(cabecalhos).filter(([nome]) => !nome.startsWith(':'))
   return Object.fromEntries(
     pares.map(([nome, valor]) => [nome, Array.isArray(valor) ? valor.join(', ') : valor]),
   )
