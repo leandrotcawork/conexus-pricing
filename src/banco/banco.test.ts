@@ -99,7 +99,8 @@ describe('roles', () => {
     await coletor
       .insert(observacao)
       .values({ rodadaId: ids.rodada, produtoId: ids.produto, situacao: 'NAO_ENCONTRADO' })
-    await coletor.update(observacao).set({ detalhe: 'revisto' })
+    await coletor.update(observacao).set({ situacao: 'SEM_ESTOQUE', precoCentavos: 100 })
+    await coletor.update(observacao).set({ situacao: 'OK', precoListaCentavos: 120 })
     await coletor.update(rodada).set({ sinalEm: new Date() })
   })
 
@@ -121,7 +122,18 @@ describe('o banco recusa preço falso', () => {
       { situacao: 'OK', precoCentavos: 100, precoListaCentavos: 0 },
       'observacao_preco_positivo',
     ],
-    ['OK sem preço', { situacao: 'OK' }, 'observacao_ok_tem_preco'],
+    ['OK sem preço', { situacao: 'OK' }, 'observacao_com_preco_tem_preco'],
+    ['sem estoque sem preço', { situacao: 'SEM_ESTOQUE' }, 'observacao_com_preco_tem_preco'],
+    [
+      'sem estoque com preço de lista',
+      { situacao: 'SEM_ESTOQUE', precoCentavos: 100, precoListaCentavos: 120 },
+      'observacao_preco_lista_so_no_ok',
+    ],
+    [
+      'sem preço com preço de lista',
+      { situacao: 'SEM_PRECO', precoListaCentavos: 120 },
+      'observacao_preco_lista_so_no_ok',
+    ],
     [
       'não encontrado com preço',
       { situacao: 'NAO_ENCONTRADO', precoCentavos: 100 },

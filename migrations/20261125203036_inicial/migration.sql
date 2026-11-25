@@ -26,8 +26,9 @@ CREATE TABLE "precos"."observacao" (
 	"coletado_em" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "observacao_pk" PRIMARY KEY("rodada_id","produto_id"),
 	CONSTRAINT "observacao_preco_positivo" CHECK ("preco_centavos" > 0 AND "preco_lista_centavos" > 0),
-	CONSTRAINT "observacao_ok_tem_preco" CHECK ("situacao" <> 'OK' OR "preco_centavos" IS NOT NULL),
-	CONSTRAINT "observacao_sem_preco_sem_valor" CHECK ("situacao" NOT IN ('SEM_PRECO', 'NAO_ENCONTRADO', 'ERRO') OR ("preco_centavos" IS NULL AND "preco_lista_centavos" IS NULL)),
+	CONSTRAINT "observacao_com_preco_tem_preco" CHECK ("situacao" NOT IN ('OK', 'SEM_ESTOQUE') OR "preco_centavos" IS NOT NULL),
+	CONSTRAINT "observacao_sem_preco_sem_valor" CHECK ("situacao" NOT IN ('SEM_PRECO', 'NAO_ENCONTRADO', 'ERRO') OR "preco_centavos" IS NULL),
+	CONSTRAINT "observacao_preco_lista_so_no_ok" CHECK ("situacao" = 'OK' OR "preco_lista_centavos" IS NULL),
 	CONSTRAINT "observacao_erro_tem_detalhe" CHECK ("situacao" <> 'ERRO' OR "detalhe" IS NOT NULL)
 );
 --> statement-breakpoint

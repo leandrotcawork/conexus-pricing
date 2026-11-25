@@ -1,7 +1,7 @@
 {
-  "id": "42519aef-8df8-40aa-b5fb-b61d1ee9adde",
+  "id": "c39b5f14-8cc5-4e75-a035-05c640037066",
   "prevIds": [
-    "1cba0559-daa4-4e81-b59e-ba870805ced2"
+    "6c50fd38-b988-4f22-8899-db4f6d26ba36"
   ],
   "version": "8",
   "dialect": "postgres",
@@ -678,15 +678,22 @@
       "table": "observacao"
     },
     {
-      "value": "\"situacao\" <> 'OK' OR \"preco_centavos\" IS NOT NULL",
-      "name": "observacao_ok_tem_preco",
+      "value": "\"situacao\" NOT IN ('OK', 'SEM_ESTOQUE') OR \"preco_centavos\" IS NOT NULL",
+      "name": "observacao_com_preco_tem_preco",
       "entityType": "checks",
       "schema": "precos",
       "table": "observacao"
     },
     {
-      "value": "\"situacao\" NOT IN ('SEM_PRECO', 'NAO_ENCONTRADO', 'ERRO') OR (\"preco_centavos\" IS NULL AND \"preco_lista_centavos\" IS NULL)",
+      "value": "\"situacao\" NOT IN ('SEM_PRECO', 'NAO_ENCONTRADO', 'ERRO') OR \"preco_centavos\" IS NULL",
       "name": "observacao_sem_preco_sem_valor",
+      "entityType": "checks",
+      "schema": "precos",
+      "table": "observacao"
+    },
+    {
+      "value": "\"situacao\" = 'OK' OR \"preco_lista_centavos\" IS NULL",
+      "name": "observacao_preco_lista_so_no_ok",
       "entityType": "checks",
       "schema": "precos",
       "table": "observacao"

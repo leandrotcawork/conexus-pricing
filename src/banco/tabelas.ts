@@ -104,10 +104,18 @@ export const observacao = precos.table(
   (t) => [
     primaryKey({ name: 'observacao_pk', columns: [t.rodadaId, t.produtoId] }),
     check('observacao_preco_positivo', sql`${t.precoCentavos} > 0 AND ${t.precoListaCentavos} > 0`),
-    check('observacao_ok_tem_preco', sql`${t.situacao} <> 'OK' OR ${t.precoCentavos} IS NOT NULL`),
+    // quem tem preço em cada situação é a união Observacao do domínio
+    check(
+      'observacao_com_preco_tem_preco',
+      sql`${t.situacao} NOT IN ('OK', 'SEM_ESTOQUE') OR ${t.precoCentavos} IS NOT NULL`,
+    ),
     check(
       'observacao_sem_preco_sem_valor',
-      sql`${t.situacao} NOT IN ('SEM_PRECO', 'NAO_ENCONTRADO', 'ERRO') OR (${t.precoCentavos} IS NULL AND ${t.precoListaCentavos} IS NULL)`,
+      sql`${t.situacao} NOT IN ('SEM_PRECO', 'NAO_ENCONTRADO', 'ERRO') OR ${t.precoCentavos} IS NULL`,
+    ),
+    check(
+      'observacao_preco_lista_so_no_ok',
+      sql`${t.situacao} = 'OK' OR ${t.precoListaCentavos} IS NULL`,
     ),
     check('observacao_erro_tem_detalhe', sql`${t.situacao} <> 'ERRO' OR ${t.detalhe} IS NOT NULL`),
   ],
