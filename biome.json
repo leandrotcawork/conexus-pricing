@@ -1,0 +1,199 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "includes": ["**", "!package-lock.json"]
+  },
+  "formatter": {
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single",
+      "semicolons": "asNeeded",
+      "trailingCommas": "all"
+    }
+  },
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "complexity": {
+        "noExcessiveLinesPerFunction": {
+          "level": "error",
+          "options": {
+            "maxLines": 60,
+            "skipBlankLines": true
+          }
+        }
+      },
+      "style": {
+        "noDefaultExport": "error",
+        "useThrowOnlyError": "error",
+        "noProcessEnv": "error",
+        "noNonNullAssertion": "error",
+        "useConsistentTypeDefinitions": {
+          "level": "error",
+          "options": {
+            "style": "type"
+          }
+        },
+        "noExcessiveLinesPerFile": {
+          "level": "error",
+          "options": {
+            "maxLines": 300,
+            "skipBlankLines": true
+          }
+        },
+        "useImportType": {
+          "level": "error",
+          "options": {
+            "style": "separatedType"
+          }
+        },
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "paths": {
+              "pg": "Only src/banco/conexao.ts imports pg (data D19).",
+              "@neon/functions": "Only src/banco/conexao.ts imports @neon/functions (data D19).",
+              "@crawlee/http": "Only src/coleta/http.ts imports Crawlee (code C56).",
+              "@modelcontextprotocol/server": "Only src/mcp/ imports the MCP server SDK.",
+              "oracledb": "Only scripts/carga-catalogo.ts imports oracledb."
+            }
+          }
+        }
+      },
+      "suspicious": {
+        "noExplicitAny": "error",
+        "noEmptyBlockStatements": "error"
+      },
+      "nursery": {
+        "noFloatingPromises": "error",
+        "noThisOutsideOfClass": "error",
+        "noUnsafeTypeAssertion": "error",
+        "useConsistentFunctionStyle": {
+          "level": "error",
+          "options": {
+            "style": "declaration"
+          }
+        },
+        "useExhaustiveSwitchCases": "error"
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["src/banco/conexao.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@crawlee/http": "Only src/coleta/http.ts imports Crawlee (code C56).",
+                  "@modelcontextprotocol/server": "Only src/mcp/ imports the MCP server SDK.",
+                  "oracledb": "Only scripts/carga-catalogo.ts imports oracledb."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/coleta/http.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "pg": "Only src/banco/conexao.ts imports pg (data D19).",
+                  "@neon/functions": "Only src/banco/conexao.ts imports @neon/functions (data D19).",
+                  "@modelcontextprotocol/server": "Only src/mcp/ imports the MCP server SDK.",
+                  "oracledb": "Only scripts/carga-catalogo.ts imports oracledb."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/mcp/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "pg": "Only src/banco/conexao.ts imports pg (data D19).",
+                  "@neon/functions": "Only src/banco/conexao.ts imports @neon/functions (data D19).",
+                  "@crawlee/http": "Only src/coleta/http.ts imports Crawlee (code C56).",
+                  "oracledb": "Only scripts/carga-catalogo.ts imports oracledb."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["scripts/carga-catalogo.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "pg": "Only src/banco/conexao.ts imports pg (data D19).",
+                  "@neon/functions": "Only src/banco/conexao.ts imports @neon/functions (data D19).",
+                  "@crawlee/http": "Only src/coleta/http.ts imports Crawlee (code C56).",
+                  "@modelcontextprotocol/server": "Only src/mcp/ imports the MCP server SDK."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/dominio/**", "!**/*.test.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["**", "!./*", "!zod"],
+                    "message": "src/dominio/ imports only zod and its own files."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
