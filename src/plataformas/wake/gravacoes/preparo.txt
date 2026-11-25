@@ -1,0 +1,6 @@
+www.abcdaconstrucao.com.br · GET / · 2026-11-25
+HTTP 200
+content-type: text/html; charset=utf-8
+
+<!doctype html>
+<script>const clientConfig={storefrontAccessToken:"tcs_inventado_00000000000000000000"}</script>

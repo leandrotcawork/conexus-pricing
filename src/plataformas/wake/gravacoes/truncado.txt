@@ -1,0 +1,27 @@
+storefront-api.fbits.net · POST /graphql · 2026-11-25
+HTTP 200
+content-type: application/json; charset=utf-8
+
+{
+  "data": {
+    "products": {
+      "pageInfo": {
+        "hasNextPage": true
+      },
+      "edges": [
+        {
+          "node": {
+            "ean": "2000000000012",
+            "alias": "produto-inventado-1",
+            "aliasComplete": "produto/produto-inventado-1",
+            "available": true,
+            "prices": {
+              "price": 10.9,
+              "listPrice": 10.9
+            }
+          }
+        }
+      ]
+    }
+  }
+}

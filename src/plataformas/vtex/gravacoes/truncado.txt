@@ -1,0 +1,25 @@
+www.telhanorte.com.br · GET /api/catalog_system/pub/products/search?fq=alternateIds_Ean:2000000000011&fq=alternateIds_Ean:2000000000012&_from=0&_to=0 · 2026-11-25
+HTTP 206
+content-type: application/json; charset=utf-8
+resources: 0-0/2
+
+[
+  {
+    "link": "https://www.telhanorte.com.br/produto-inventado-1/p",
+    "items": [
+      {
+        "ean": "2000000000011",
+        "sellers": [
+          {
+            "sellerName": "Vendedor inventado",
+            "commertialOffer": {
+              "Price": 10.9,
+              "ListPrice": 10.9,
+              "IsAvailable": true
+            }
+          }
+        ]
+      }
+    ]
+  }
+]
