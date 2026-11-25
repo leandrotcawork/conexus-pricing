@@ -6,10 +6,11 @@ e uma Function que serve o MCP.
 
 ## Estado
 
-Etapa E1. Existem o domínio em `src/dominio/`, o banco (schema `precos`, duas roles e a migração), o
-cliente HTTP sobre o Crawlee e as duas Functions, que por enquanto só respondem que estão de pé. A
-Function de coleta também mede o alcance das três lojas. Carga do catálogo, adaptadores das lojas,
-ferramentas MCP e agenda entram nas etapas E2 a E5.
+Etapa E3. A Function de coleta roda a rodada de uma loja quando o gatilho do Neon a chama: pergunta
+cada produto do catálogo à Telha Norte (VTEX), à Condec (Tray) ou à ABC (Wake) e grava o que ela
+respondeu. As migrações criam o schema `precos`, as duas roles e as três lojas. A Function de MCP por
+enquanto só responde que está de pé. A carga do catálogo (E2), as ferramentas MCP (E4) e a agenda (E5)
+ainda não existem aqui.
 
 | Etapa | Entrega |
 | --- | --- |
@@ -56,7 +57,6 @@ A publicação não roda no CI. Cada uma é feita à mão, com a autorização d
    | --- | --- |
    | `COLETOR_DATABASE_URL` | A URL com pooler do banco, com o usuário `precos_coletor` e uma senha sua |
    | `LEITOR_DATABASE_URL` | A mesma URL, com o usuário `precos_leitor` e outra senha |
-   | `ALCANCE_TOKEN` | Um segredo de 32 caracteres ou mais para a rota de alcance |
 
    `openssl rand -hex 24` gera um valor que o Neon aceita como senha e que não precisa de escape na URL.
 
@@ -79,15 +79,54 @@ A publicação não roda no CI. Cada uma é feita à mão, com a autorização d
    ```sh
    curl "$URL_DA_COLETA/"
    curl "$URL_DO_MCP/"
-   curl -X POST "$URL_DA_COLETA/_alcance" \
-     -H "Authorization: Bearer $ALCANCE_TOKEN" \
-     -d '{"ean":"<um EAN que as lojas vendem>","tokenAbc":"<token da loja>"}'
    ```
 
-   A rota de alcance faz um pedido a cada loja e devolve o status e o tempo de cada uma. O `tokenAbc` é
-   o valor que o site da ABC envia no cabeçalho `TCS-Access-Token`, visível nas requisições do navegador.
+6. Uma vez, grave o token reserva da ABC. É o valor que o site da loja envia no cabeçalho
+   `TCS-Access-Token`, visível nas requisições do navegador. A coleta lê o token do site a cada rodada e
+   só usa o reserva quando não o acha. Sem ele a rodada da ABC fecha como `FALHOU`, com o aviso
+   `CONFIG_INVALIDA`. Rode como dono do banco, no editor SQL do Neon:
+
+   ```sql
+   UPDATE precos.fonte
+   SET config = config || jsonb_build_object('tokenReserva', '<token>')
+   WHERE codigo = 'abc';
+   ```
 
 A carga do catálogo (`scripts/carga-catalogo.ts`) entra na etapa E2.
+
+## Rodar uma loja à mão
+
+Cada loja tem uma rota na Function de coleta: `POST /telhanorte`, `POST /condec` e `POST /abc`. Só o
+gatilho do Neon consegue chamá-la, porque o Neon apaga os cabeçalhos `X-Neon-*` de quem chama de fora.
+Um `curl` recebe 401. Para rodar uma loja agora, crie um gatilho com um horário alguns minutos à
+frente, em UTC (minuto, hora, dia e mês fixos), e apague-o depois que ele disparar:
+
+```sh
+npx neon triggers create --function-slug coleta --name manual-telhanorte \
+  --function-path /telhanorte --cron '<minuto> <hora> <dia> <mês> *'
+npx neon triggers list
+npx neon triggers delete <id do gatilho>
+```
+
+A rodada fica em `precos.rodada`, com a situação, as contagens por situação e os avisos. Entregar o
+mesmo horário outra vez não a duplica. Uma rodada para de pedir à loja aos 13 minutos. O que não coube
+fica para a entrega seguinte, que o Neon faz sozinho depois da resposta 503.
+
+## Gravar as respostas de uma loja
+
+Os testes respondem no lugar das lojas com respostas gravadas em `src/plataformas/<plataforma>/gravacoes/`,
+com preços, nomes, endereços, EANs e token trocados por inventados. Para gravar de novo, com dois EANs
+que a loja vende:
+
+```sh
+node scripts/gravar.ts vtex '{"origem":"https://www.telhanorte.com.br","lote":50}' <ean> <ean>
+node scripts/gravar.ts tray '{"origem":"https://www.condec.com.br","lote":25}' <ean> <ean>
+node scripts/gravar.ts wake '{"loja":"https://www.abcdaconstrucao.com.br","api":"https://storefront-api.fbits.net/graphql","lote":25,"tokenReserva":"<token>"}' <ean> <ean>
+```
+
+O script faz um pedido por caso, com três segundos entre eles. Com `--cru <pasta fora do repositório>`,
+as respostas originais ficam guardadas e a próxima execução não pede de novo. Essas pastas têm dados
+reais e não entram no Git.
 
 ## Como o código se organiza
 
