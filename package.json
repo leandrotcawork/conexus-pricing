@@ -1,0 +1,22 @@
+{
+  "name": "conexus-pricing",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": {
+    "node": ">=24.21.0"
+  },
+  "scripts": {
+    "check": "biome check . && tsc -p tsconfig.json && knip",
+    "test": "node --test --test-timeout=60000 \"src/**/*.test.ts\""
+  },
+  "dependencies": {
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.14",
+    "@types/node": "24.19.2",
+    "knip": "6.38.0",
+    "typescript": "6.0.3"
+  }
+}
