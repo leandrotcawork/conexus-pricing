@@ -12,8 +12,8 @@ const MIGRAR = fileURLToPath(new URL('../../scripts/migrar.ts', import.meta.url)
 const SENHA_DE_TESTE = 'Precos_teste-7Qk2mZ9x'
 const executar = promisify(execFile)
 
-function urlDeOutroBanco(urlBase: string, banco: string, role?: Role): string {
-  const url = new URL(urlBase)
+function urlDeTeste({ base, banco, role }: { base: string; banco: string; role?: Role }): string {
+  const url = new URL(base)
   url.pathname = `/${banco}`
   if (role !== undefined) {
     url.username = role
@@ -28,9 +28,9 @@ export async function criarBancoDescartavel(urlBase: string) {
   const base = abrirBanco(urlBase)
   await base.execute(sql`CREATE DATABASE ${sql.identifier(nome)}`)
   const urls = {
-    dono: urlDeOutroBanco(urlBase, nome),
-    coletor: urlDeOutroBanco(urlBase, nome, ROLES.coletor),
-    leitor: urlDeOutroBanco(urlBase, nome, ROLES.leitor),
+    dono: urlDeTeste({ base: urlBase, banco: nome }),
+    coletor: urlDeTeste({ base: urlBase, banco: nome, role: ROLES.coletor }),
+    leitor: urlDeTeste({ base: urlBase, banco: nome, role: ROLES.leitor }),
   }
   return {
     urls,

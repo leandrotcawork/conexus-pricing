@@ -2,7 +2,6 @@ import { sql } from 'drizzle-orm'
 import { z } from 'zod'
 import type { Banco } from './conexao.ts'
 
-/** Os nomes que a migração das roles cria. */
 export const ROLES = { coletor: 'precos_coletor', leitor: 'precos_leitor' } as const
 export type Role = (typeof ROLES)[keyof typeof ROLES]
 

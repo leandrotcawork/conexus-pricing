@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { abrirBanco } from './conexao.ts'
 import { ROLES } from './roles.ts'
 
-export type EstadoDoBanco =
+type EstadoDoBanco =
   | { readonly dePe: true; readonly role: string }
   | { readonly dePe: false; readonly motivo: 'ROLE_ERRADA' | 'BANCO_INACESSIVEL' }
 
