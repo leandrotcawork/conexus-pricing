@@ -88,3 +88,10 @@ export function produtoEFonteSaoMontadosComMarcas(
   como<FonteCodigo>(fonte.codigo)
   return plataforma
 }
+
+export function listaDeSituacoesIgualAUniao(
+  daUniao: Observacao['situacao'],
+  daLista: SituacaoObservacao,
+): readonly [SituacaoObservacao, Observacao['situacao']] {
+  return [daUniao, daLista]
+}
