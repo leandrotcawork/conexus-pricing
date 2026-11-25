@@ -8,14 +8,20 @@
   },
   "scripts": {
     "check": "biome check . && tsc -p tsconfig.json && knip",
-    "test": "node --test --test-timeout=60000 \"src/**/*.test.ts\""
+    "test": "node --test --test-timeout=60000 \"src/**/*.test.ts\"",
+    "migrar": "node --env-file-if-exists=.env.local scripts/migrar.ts"
   },
   "dependencies": {
+    "@neon/functions": "0.11.0",
+    "drizzle-orm": "1.0.0-rc.4",
+    "pg": "8.23.1",
     "zod": "4.6.7"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.14",
     "@types/node": "24.19.2",
+    "@types/pg": "8.23.1",
+    "drizzle-kit": "1.0.0-rc.4",
     "knip": "6.38.0",
     "typescript": "6.0.3"
   }

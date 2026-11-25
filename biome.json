@@ -6,7 +6,7 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["**", "!package-lock.json"]
+    "includes": ["**", "!package-lock.json", "!migrations"]
   },
   "formatter": {
     "indentStyle": "space",
@@ -388,7 +388,7 @@
       }
     },
     {
-      "includes": ["src/funcoes/*.ts"],
+      "includes": ["src/funcoes/*.ts", "drizzle.config.ts"],
       "linter": {
         "rules": {
           "style": {

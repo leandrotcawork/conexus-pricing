@@ -29,7 +29,16 @@ export type Observacao =
   | { readonly situacao: 'NAO_ENCONTRADO' }
   | { readonly situacao: 'ERRO'; readonly detalhe: string }
 
-export type SituacaoObservacao = Observacao['situacao']
+/** A união em valor, para o enum do banco; tipos.check.ts prova que não divergem. */
+export const SITUACOES_OBSERVACAO = [
+  'OK',
+  'SEM_ESTOQUE',
+  'SEM_PRECO',
+  'NAO_ENCONTRADO',
+  'ERRO',
+] as const
+
+export type SituacaoObservacao = (typeof SITUACOES_OBSERVACAO)[number]
 
 type OfertaComPreco = Oferta & { readonly preco: Centavos }
 

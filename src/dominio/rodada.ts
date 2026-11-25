@@ -1,6 +1,13 @@
 import type { SituacaoObservacao } from './observacao.ts'
 
-export type SituacaoRodada = 'RODANDO' | 'CONCLUIDA' | 'SUSPEITA' | 'FALHOU' | 'INTERROMPIDA'
+export const SITUACOES_RODADA = [
+  'RODANDO',
+  'CONCLUIDA',
+  'SUSPEITA',
+  'FALHOU',
+  'INTERROMPIDA',
+] as const
+export type SituacaoRodada = (typeof SITUACOES_RODADA)[number]
 
 export type Aviso =
   | { readonly tipo: 'TOKEN_RESERVA_EM_USO' } // wake.py:73-78
