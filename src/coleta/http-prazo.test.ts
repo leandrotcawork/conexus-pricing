@@ -24,11 +24,11 @@ describe('ritmo por minuto', () => {
   })
 })
 
-describe('prazo final', () => {
-  function ate(ms: number) {
-    return { ...OPCOES, prazoFinal: new Date(Date.now() + ms) }
-  }
+function ate(ms: number) {
+  return { ...OPCOES, prazoFinal: new Date(Date.now() + ms) }
+}
 
+describe('prazo final', () => {
   test('nenhum pedido começa depois do prazo, e o que sobrou não vira resposta', async () => {
     await using loja = await abrirLojaDeTeste(() => ({ status: 200, atrasoMs: 150 }))
     const pedidos = Array.from({ length: 30 }, (_, indice) => get(loja.url(`/${indice}`)))
@@ -80,7 +80,9 @@ describe('prazo final', () => {
     assert.deepEqual(resumo(resultados), ['sem resposta'])
     assert.equal(loja.pedidos.length, 1)
   })
+})
 
+describe('a pausa do Retry-After vale para o cliente', () => {
   test('depois de um Retry-After além do prazo, nada mais sai para a loja no mesmo cliente', async () => {
     await using loja = await abrirLojaDeTeste((pedido) =>
       pedido.caminho === '/a'
@@ -100,5 +102,43 @@ describe('prazo final', () => {
       ['/a'],
     )
     assert.deepEqual(respondidos, [])
+  })
+
+  test('o Retry-After além do prazo na última tentativa também segura as chamadas seguintes', async () => {
+    await using loja = await abrirLojaDeTeste((pedido, vez) => {
+      if (pedido.caminho !== '/a') return { status: 200 }
+      return { status: 429, cabecalhos: { 'retry-after': vez === 1 ? '1' : '600' } }
+    })
+    const cliente = clienteCrawlee(ate(5000))
+    for (const caminhos of [['/a'], ['/c'], ['/d']]) {
+      const pedidos = caminhos.map((caminho) => get(loja.url(caminho)))
+      await cliente.buscar(pedidos, async () => undefined)
+    }
+    assert.deepEqual(
+      loja.pedidos.map((p) => p.caminho),
+      ['/a', '/a'],
+    )
+  })
+
+  test('a pausa que cabe no prazo é esperada antes da chamada seguinte', async () => {
+    await using loja = await abrirLojaDeTeste((pedido) =>
+      pedido.caminho === '/a'
+        ? { status: 429, cabecalhos: { 'retry-after': '1' } }
+        : { status: 200 },
+    )
+    const cliente = clienteCrawlee(OPCOES)
+    for (const caminhos of [['/a'], ['/b']]) {
+      const pedidos = caminhos.map((caminho) => get(loja.url(caminho)))
+      await cliente.buscar(pedidos, async () => undefined)
+    }
+    const [, ultimoA, b] = loja.pedidos
+    assert.deepEqual(
+      loja.pedidos.map((p) => p.caminho),
+      ['/a', '/a', '/b'],
+    )
+    assert.ok(
+      ultimoA && b && b.em - ultimoA.em >= 900,
+      `folga: ${b && ultimoA && b.em - ultimoA.em}`,
+    )
   })
 })

@@ -123,6 +123,11 @@ function opcoesDaLoja(opcoes: OpcoesDoCliente, { entregar, parar }: Ganchos): Ht
   function restanteMs(): number {
     return opcoes.prazoFinal.getTime() - Date.now()
   }
+  function pausar(response: HttpCrawlingContext['response'] | undefined): number {
+    const espera = esperaPedidaMs(response?.headers['retry-after'], opcoes.esperaMaximaMs) ?? 0
+    proximoInicio = Math.max(proximoInicio, performance.now() + espera)
+    return espera
+  }
   return {
     maxConcurrency: 1,
     maxRequestRetries: opcoes.tentativas,
@@ -163,8 +168,7 @@ function opcoesDaLoja(opcoes: OpcoesDoCliente, { entregar, parar }: Ganchos): Ht
     ],
     postNavigationHooks: [async (contexto) => limitarCorpo(contexto, opcoes.tetoBytes)],
     errorHandler: async ({ response }) => {
-      const espera = esperaPedidaMs(response?.headers['retry-after'], opcoes.esperaMaximaMs) ?? 0
-      proximoInicio = Math.max(proximoInicio, performance.now() + espera)
+      const espera = pausar(response)
       // a repetição que não cabe no prazo fica sem resposta, para a próxima entrega
       if (espera >= restanteMs()) parar()
       else await esperar(espera)
@@ -177,6 +181,7 @@ function opcoesDaLoja(opcoes: OpcoesDoCliente, { entregar, parar }: Ganchos): Ht
       await entregar(Number(request.uniqueKey), { tipo: 'RESPONDEU', resposta, ms })
     },
     failedRequestHandler: async ({ request, response }, erro) => {
+      pausar(response)
       if (erro instanceof ForaDoPrazo) return
       await entregar(Number(request.uniqueKey), {
         tipo: 'FALHOU',
