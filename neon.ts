@@ -1,5 +1,5 @@
 import { defineConfig } from '@neon/config/v1'
-import { empacotarComCrawlee } from './scripts/empacotar.ts'
+import { empacotarComCrawlee, empacotarComSkill } from './scripts/empacotar.ts'
 import { valoresDaPublicacao } from './src/config.ts'
 
 const valores = valoresDaPublicacao()
@@ -20,6 +20,7 @@ export default defineConfig({
     mcp: {
       name: 'mcp de precos',
       source: 'src/funcoes/mcp.ts',
+      bundler: empacotarComSkill,
       env: {
         LEITOR_DATABASE_URL: obrigatoria(valores.leitorUrl),
         MCP_TOKEN: obrigatoria(valores.mcpToken),

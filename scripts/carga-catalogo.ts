@@ -1,13 +1,15 @@
 /**
  * A carga única do catálogo: lê o Sankhya sem gravar nada nele, aplica o recorte R3 e grava
- * `precos.produto`. A saída é só de contagens, porque o resto é dado da empresa.
+ * `precos.grupo` e `precos.produto`. A saída é só de contagens, porque o resto é dado da empresa.
  */
 import oracledb from 'oracledb'
 import { z } from 'zod'
 import { gravarCatalogo } from '../src/banco/catalogo.ts'
 import { abrirBanco, fecharBanco } from '../src/banco/conexao.ts'
 import { configDaCarga } from '../src/config.ts'
-import { Codprod, centavosDeReais, Ean } from '../src/dominio/marcas.ts'
+import type { Grupo } from '../src/dominio/grupo.ts'
+import { conferirGrupos } from '../src/dominio/grupo.ts'
+import { CodGrupo, Codprod, centavosDeReais, Ean } from '../src/dominio/marcas.ts'
 import type { ItemDoRecorte } from '../src/dominio/recorte.ts'
 import { recorteR3 } from '../src/dominio/recorte.ts'
 
@@ -23,6 +25,7 @@ SELECT P.CODPROD,
        TRIM(P.REFFORN) AS REFERENCIA_FABRICANTE,
        P.DESCRPROD AS DESCRICAO,
        TRIM(P.MARCA) AS MARCA,
+       P.CODGRUPOPROD AS GRUPO,
        N.VLRVENDA AS NOSSO_PRECO
 FROM TGFPRO P
 LEFT JOIN (
@@ -36,6 +39,16 @@ LEFT JOIN (
   ) WHERE RN = 1
 ) N ON N.CODPROD = P.CODPROD
 WHERE P.ATIVO = 'S' AND REGEXP_LIKE(TRIM(P.REFERENCIA), '^[0-9]{12,14}$')`
+
+// a árvore inteira, e não só os grupos do recorte: o caminho de um produto precisa dos ancestrais
+const GRUPOS = `
+SELECT CODGRUPOPROD AS CODIGO,
+       TRIM(DESCRGRUPOPROD) AS NOME,
+       CODGRUPAI AS PAI,
+       GRAU,
+       ANALITICO,
+       ATIVO
+FROM TGFGRU`
 
 // V venda, D devolução de venda, C compra, O pedido de compra, só os liberados (L). O pedido de
 // venda (P) fica fora: vira nota V ao faturar, e a maior parte dele é orçamento. A operação sem
@@ -68,6 +81,7 @@ const LinhaDeProduto = z
     REFERENCIA_FABRICANTE: z.string().nullable(),
     DESCRICAO: z.string(),
     MARCA: z.string().nullable(),
+    GRUPO: z.number().int().pipe(CodGrupo).nullable(),
     NOSSO_PRECO: z.number().nullable(),
   })
   .transform((linha) => ({
@@ -76,8 +90,34 @@ const LinhaDeProduto = z
     referenciaFabricante: linha.REFERENCIA_FABRICANTE,
     descricao: linha.DESCRICAO,
     marca: linha.MARCA,
+    grupo: linha.GRUPO,
     nossoPreco: linha.NOSSO_PRECO === null ? null : centavosDeReais(linha.NOSSO_PRECO),
   }))
+
+const SimOuNao = z.enum(['S', 'N']).transform((valor) => valor === 'S')
+
+/** No TGFGRU, a raiz pode vir sem pai ou com este marcador de "sem pai" do Sankhya. */
+const SEM_PAI = -999_999_999
+
+const LinhaDeGrupo = z
+  .object({
+    CODIGO: z.number().int().pipe(CodGrupo),
+    NOME: z.string(),
+    PAI: z.number().int().pipe(CodGrupo).nullable(),
+    GRAU: z.number().int(),
+    ANALITICO: SimOuNao,
+    ATIVO: SimOuNao,
+  })
+  .transform(
+    (linha): Grupo => ({
+      codigo: linha.CODIGO,
+      nome: linha.NOME,
+      pai: linha.PAI === SEM_PAI ? null : linha.PAI,
+      grau: linha.GRAU,
+      analitico: linha.ANALITICO,
+      ativo: linha.ATIVO,
+    }),
+  )
 
 const TIPOS = { V: 'VENDA', D: 'DEVOLUCAO', C: 'COMPRA', O: 'COMPRA' } as const
 
@@ -117,19 +157,43 @@ async function lerSankhya({ oracle, esquema }: ReturnType<typeof configDaCarga>)
   const conexao = await oracledb.getConnection(oracle)
   try {
     await conexao.execute(`ALTER SESSION SET CURRENT_SCHEMA = ${esquema}`)
-    // as duas consultas veem o mesmo instante, e a transação não aceita escrita
+    // as três consultas veem o mesmo instante, e a transação não aceita escrita
     await conexao.execute('SET TRANSACTION READ ONLY')
     const binds = { codtab: CODTAB_NOSSO_PRECO }
     const produtos = await consultar(conexao, { sql: PRODUTOS, binds }, LinhaDeProduto)
     const movimentos = await consultar(conexao, { sql: MOVIMENTOS, binds: {} }, LinhaDeMovimento)
-    return { produtos, movimentos }
+    const grupos = await consultar(conexao, { sql: GRUPOS, binds: {} }, LinhaDeGrupo)
+    return { produtos, movimentos, grupos }
   } finally {
     await conexao.rollback()
     await conexao.close()
   }
 }
 
-function resumo(itens: readonly ItemDoRecorte[], linhasNoBanco: number): string {
+/**
+ * Um pai ou um grupo de produto que não existe na árvore recusa a carga inteira, com a contagem: a
+ * chave estrangeira recusaria sem dizer quantos.
+ */
+function conferir(grupos: readonly Grupo[], itens: readonly ItemDoRecorte[]) {
+  const contagens = conferirGrupos(
+    grupos,
+    itens.map((item) => item.produto.grupo),
+  )
+  const { gruposDePaiInexistente, produtosDeGrupoInexistente } = contagens
+  if (gruposDePaiInexistente > 0 || produtosDeGrupoInexistente > 0) {
+    throw new Error(
+      `nada foi gravado: grupos com um pai que não existe no TGFGRU: ${gruposDePaiInexistente}; produtos do recorte num grupo que não existe: ${produtosDeGrupoInexistente}`,
+    )
+  }
+  return contagens
+}
+
+type Gravado = ReturnType<typeof conferir> & {
+  readonly grupos: number
+  readonly linhasNoBanco: number
+}
+
+function resumo(itens: readonly ItemDoRecorte[], gravado: Gravado): string {
   const semPreco = itens.filter((item) => item.produto.nossoPreco === null).length
   let acumulado = 0
   const classes = (['A', 'B', 'C'] as const).map((classe) => {
@@ -141,21 +205,25 @@ function resumo(itens: readonly ItemDoRecorte[], linhasNoBanco: number): string 
     `produtos do recorte R3: ${itens.length}`,
     `sem nosso preço: ${semPreco}`,
     ...classes,
-    `linhas em precos.produto: ${linhasNoBanco}`,
+    `grupos de produto: ${gravado.grupos}`,
+    `produtos sem grupo: ${gravado.produtosSemGrupo}`,
+    `produtos em grupo sintético: ${gravado.produtosEmGrupoSintetico}`,
+    `linhas em precos.produto: ${gravado.linhasNoBanco}`,
   ].join('\n')
 }
 
 async function carregar(): Promise<void> {
   const config = configDaCarga()
-  const { produtos, movimentos } = await lerSankhya(config)
+  const { produtos, movimentos, grupos } = await lerSankhya(config)
   const itens = recorteR3(produtos, movimentos)
   if (itens.length === 0) {
     throw new Error('o recorte veio vazio e nada foi gravado; confira SANKHYA_ORACLE_SCHEMA')
   }
+  const contagens = conferir(grupos, itens)
   const banco = abrirBanco(config.urlDoDono)
   try {
-    const catalogo = itens.map((item) => item.produto)
-    console.log(resumo(itens, await gravarCatalogo(banco, catalogo)))
+    const linhasNoBanco = await gravarCatalogo(banco, { grupos, itens })
+    console.log(resumo(itens, { ...contagens, grupos: grupos.length, linhasNoBanco }))
   } finally {
     await fecharBanco(banco)
   }

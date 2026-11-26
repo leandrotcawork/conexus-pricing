@@ -7,7 +7,9 @@ type Executar = (sql: string, binds: Valor[]) => Promise<unknown>
 
 const TABELAS = {
   TGFPRO: `CODPROD NUMBER PRIMARY KEY, REFERENCIA VARCHAR2(30), REFFORN VARCHAR2(30),
-    DESCRPROD VARCHAR2(60), MARCA VARCHAR2(30), ATIVO CHAR(1)`,
+    DESCRPROD VARCHAR2(60), MARCA VARCHAR2(30), ATIVO CHAR(1), CODGRUPOPROD NUMBER`,
+  TGFGRU: `CODGRUPOPROD NUMBER PRIMARY KEY, DESCRGRUPOPROD VARCHAR2(60), CODGRUPAI NUMBER,
+    GRAU NUMBER, ANALITICO CHAR(1), ATIVO CHAR(1)`,
   TGFTOP: `CODTIPOPER NUMBER, DHALTER DATE, DESCROPER VARCHAR2(60),
     PRIMARY KEY (CODTIPOPER, DHALTER)`,
   TGFCAB: `NUNOTA NUMBER PRIMARY KEY, TIPMOV CHAR(1), STATUSNOTA CHAR(1), DTNEG DATE,
@@ -25,27 +27,40 @@ type Produto = readonly [
   refforn: string | null,
   marca: string | null,
   ativo: 'S' | 'N',
+  grupo?: number,
 ]
 
 // a REFERENCIA é onde o Sankhya guarda o EAN
+// o 103 não tem grupo; o 104 e o 111 estão em grupo sintético
 const PRODUTOS: readonly Produto[] = [
-  [101, '2000000000101', 'FAB-101', 'Marca A', 'S'],
-  [102, '2000000000102', null, '  Marca B  ', 'S'],
+  [101, '2000000000101', 'FAB-101', 'Marca A', 'S', 10],
+  [102, '2000000000102', null, '  Marca B  ', 'S', 21],
   [103, '  200000000103  ', 'FAB-103', null, 'S'],
-  [104, '20000000000104', 'FAB-104', 'Marca A', 'S'],
-  [105, '2000000000105', 'FAB-105', 'Marca A', 'S'],
-  [106, '2000000000106', 'FAB-106', 'Marca A', 'S'],
-  [107, '2000000000107', null, null, 'S'],
+  [104, '20000000000104', 'FAB-104', 'Marca A', 'S', 20],
+  [105, '2000000000105', 'FAB-105', 'Marca A', 'S', 10],
+  [106, '2000000000106', 'FAB-106', 'Marca A', 'S', 21],
+  // um grupo que não existe, num produto fora do recorte, não recusa a carga
+  [107, '2000000000107', null, null, 'S', 999],
   [108, '2000000000108', null, null, 'S'],
   [109, '2000000000109', null, null, 'S'],
-  [110, '2000000000110', null, null, 'S'],
-  [111, '2000000000111', null, null, 'S'],
+  [110, '2000000000110', null, null, 'S', 10],
+  [111, '2000000000111', null, null, 'S', 1],
   [116, '2000000000116', null, null, 'S'],
   // fora do universo: inativo, EAN curto, EAN longo e sem EAN
-  [112, '2000000000112', null, null, 'N'],
+  [112, '2000000000112', null, null, 'N', 999],
   [113, '20000000113', null, null, 'S'],
   [114, '200000000000114', null, null, 'S'],
   [115, 'SEM EAN', null, null, 'S'],
+]
+
+// código, nome, pai, grau, analítico, ativo; o filho vem antes do pai, e há uma raiz com o
+// marcador de "sem pai" do Sankhya e outra com o pai nulo
+const GRUPOS: readonly Valor[][] = [
+  [21, 'Folha dois', 20, 3, 'S', 'N'],
+  [10, '  Folha um  ', 1, 2, 'S', 'S'],
+  [20, 'Subgrupo', 1, 2, 'N', 'S'],
+  [1, 'Raiz inventada', -999_999_999, 1, 'N', 'S'],
+  [2, 'Outra raiz inventada', null, 1, 'S', 'S'],
 ]
 
 // código, meses atrás em que a descrição passou a valer, descrição
@@ -172,16 +187,20 @@ export async function semearSankhya(executar: Executar): Promise<void> {
   for (const [nome, colunas] of Object.entries(TABELAS)) {
     await executar(`CREATE TABLE ${nome} (${colunas})`, [])
   }
-  for (const [codprod, referencia, refforn, marca, ativo] of PRODUTOS) {
+  for (const [codprod, referencia, refforn, marca, ativo, grupo = null] of PRODUTOS) {
     const descricao = `Item inventado ${codprod}`
-    await executar('INSERT INTO TGFPRO VALUES (:1, :2, :3, :4, :5, :6)', [
+    await executar('INSERT INTO TGFPRO VALUES (:1, :2, :3, :4, :5, :6, :7)', [
       codprod,
       referencia,
       refforn,
       descricao,
       marca,
       ativo,
+      grupo,
     ])
+  }
+  for (const grupo of GRUPOS) {
+    await executar('INSERT INTO TGFGRU VALUES (:1, :2, :3, :4, :5, :6)', [...grupo])
   }
   for (const operacao of OPERACOES) {
     await executar('INSERT INTO TGFTOP VALUES (:1, ADD_MONTHS(TRUNC(SYSDATE), -:2), :3)', [

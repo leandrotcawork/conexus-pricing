@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { after, describe, test } from 'node:test'
@@ -29,6 +30,7 @@ for (const [url, init] of JSON.parse(pedidos)) {
 }
 process.exit(0)
 `
+const SKILL = new URL('../../skills/analise-precos/SKILL.md', import.meta.url)
 const Resposta = z.object({ status: z.number(), corpo: z.string() })
 const executar = promisify(execFile)
 const pastas: string[] = []
@@ -76,8 +78,8 @@ async function chamar(
   return linhas.map((linha) => Resposta.parse(JSON.parse(linha.slice('RESPOSTA '.length))))
 }
 
-/** Uma chamada de ferramenta, como um cliente do protocolo de 2025 a manda. */
-function chamadaDeFerramenta(nome: string): RequestInit {
+/** Um pedido MCP, como um cliente do protocolo de 2025 o manda. */
+function pedidoMcp(method: string, params: Record<string, unknown>): RequestInit {
   return {
     method: 'POST',
     headers: {
@@ -85,12 +87,7 @@ function chamadaDeFerramenta(nome: string): RequestInit {
       accept: 'application/json, text/event-stream',
       'content-type': 'application/json',
     },
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'tools/call',
-      params: { name: nome, arguments: {} },
-    }),
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
   }
 }
 
@@ -131,17 +128,21 @@ describe('o arquivo que o neon deploy sobe', () => {
     assert.match(resposta.corpo, /ROLE_ERRADA/)
   })
 
-  test('mcp pede o token e responde uma ferramenta lendo o banco', async () => {
+  test('mcp pede o token, responde uma ferramenta lendo o banco e serve a skill', async () => {
     await using rodada = await bancoDeRodada()
     const pasta = publicar(await buildFunctionBundle(await funcaoDoNeonTs('mcp')))
     const env = { LEITOR_DATABASE_URL: rodada.urls.leitor, MCP_TOKEN: TOKEN }
     const url = 'https://funcao.teste/mcp'
-    const [semToken, comToken] = await chamar(pasta, env, [
+    const [semToken, comToken, skill] = await chamar(pasta, env, [
       [url, { method: 'POST' }],
-      [url, chamadaDeFerramenta('saude_coleta')],
+      [url, pedidoMcp('tools/call', { name: 'saude_coleta', arguments: {} })],
+      [url, pedidoMcp('resources/read', { uri: 'skill://analise-precos/SKILL.md' })],
     ])
     assert.deepEqual([semToken?.status, comToken?.status], [401, 200])
     assert.match(comToken?.corpo ?? '', /"loja":"telhanorte"/)
+    // o texto vem de dentro do index.mjs: na pasta publicada não há a pasta skills
+    const texto = JSON.stringify(await readFile(SKILL, 'utf8'))
+    assert.ok(skill?.corpo.includes(texto), skill?.corpo.slice(0, 300))
   })
 
   test('a coleta empacotada roda duas rodadas no mesmo processo, sem disco', async () => {

@@ -1,7 +1,9 @@
 import { sql } from 'drizzle-orm'
 import {
+  bigint,
   boolean,
   check,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -13,6 +15,7 @@ import {
 } from 'drizzle-orm/pg-core'
 import { PLATAFORMAS } from '../dominio/fonte.ts'
 import { SITUACOES_OBSERVACAO } from '../dominio/observacao.ts'
+import { CLASSES } from '../dominio/recorte.ts'
 import type { Aviso, Contagens } from '../dominio/rodada.ts'
 import { SITUACOES_RODADA } from '../dominio/rodada.ts'
 
@@ -22,10 +25,29 @@ export const precos = pgSchema('precos')
 export const plataforma = precos.enum('plataforma', PLATAFORMAS)
 export const situacaoRodada = precos.enum('situacao_rodada', SITUACOES_RODADA)
 export const situacaoObservacao = precos.enum('situacao_observacao', SITUACOES_OBSERVACAO)
+export const classe = precos.enum('classe', CLASSES)
 
 function instante(nome: string) {
   return timestamp(nome, { withTimezone: true })
 }
+
+export const grupo = precos.table(
+  'grupo',
+  {
+    // o CODGRUPOPROD do Sankhya é a chave
+    codigo: integer('codigo').primaryKey(),
+    nome: text('nome').notNull(),
+    pai: integer('pai'),
+    grau: integer('grau').notNull(),
+    analitico: boolean('analitico').notNull(),
+    ativo: boolean('ativo').notNull(),
+  },
+  (t) => [
+    foreignKey({ name: 'grupo_pai_existe', columns: [t.pai], foreignColumns: [t.codigo] }).onDelete(
+      'restrict',
+    ),
+  ],
+)
 
 export const produto = precos.table(
   'produto',
@@ -37,11 +59,16 @@ export const produto = precos.table(
     descricao: text('descricao').notNull(),
     marca: text('marca'),
     nossoPrecoCentavos: integer('nosso_preco_centavos'),
+    grupoCodigo: integer('grupo_codigo').references(() => grupo.codigo, { onDelete: 'restrict' }),
+    classe: classe('classe'),
+    // um ano de venda de um produto passa do limite do integer
+    venda12mCentavos: bigint('venda_12m_centavos', { mode: 'number' }),
     carregadoEm: instante('carregado_em').notNull().defaultNow(),
   },
   (t) => [
     check('produto_ean_valido', sql`${t.ean} ~ '^[0-9]{8,14}$'`),
     check('produto_nosso_preco_positivo', sql`${t.nossoPrecoCentavos} > 0`),
+    check('produto_venda_12m_nao_negativa', sql`${t.venda12mCentavos} >= 0`),
   ],
 )
 

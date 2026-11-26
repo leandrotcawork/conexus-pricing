@@ -2,6 +2,7 @@ import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { FunctionBundler } from '@neon/config/v1'
+import type { Plugin } from 'esbuild'
 import { build } from 'esbuild'
 
 const RAIZ = fileURLToPath(new URL('..', import.meta.url))
@@ -25,12 +26,11 @@ async function dadosDoGerador(entradas: readonly string[]) {
   return Object.fromEntries(await Promise.all(arquivos))
 }
 
-/**
- * O empacotador padrão do `neon deploy` quebra o Crawlee 3.18.2: a minificação renomeia classes
- * de que ele depende e os arquivos de dados ficam de fora. Este é o mesmo esbuild, com os nomes
- * preservados e os dados copiados, a partir das versões do lockfile.
- */
-export const empacotarComCrawlee: FunctionBundler = async (funcao) => {
+/** O mesmo esbuild do `neon deploy`, a partir das versões do lockfile. */
+async function construir(
+  funcao: Parameters<FunctionBundler>[0],
+  opcoes: { readonly keepNames?: boolean; readonly plugins?: Plugin[] },
+) {
   const resultado = await build({
     absWorkingDir: RAIZ,
     entryPoints: [funcao.source],
@@ -38,15 +38,40 @@ export const empacotarComCrawlee: FunctionBundler = async (funcao) => {
     write: false,
     outfile: 'index.mjs',
     minify: true,
-    keepNames: true,
     format: 'esm',
     platform: 'node',
     banner: { js: INTEROP },
     metafile: true,
     logLevel: 'silent',
+    ...opcoes,
   })
   const [saida] = resultado.outputFiles
   if (saida === undefined) throw new Error(`o esbuild não gerou a função ${funcao.slug}`)
-  const dados = await dadosDoGerador(Object.keys(resultado.metafile.inputs))
-  return { 'index.mjs': saida.contents, ...dados }
+  return { saida: saida.contents, entradas: Object.keys(resultado.metafile.inputs) }
+}
+
+/**
+ * O empacotador padrão do `neon deploy` quebra o Crawlee 3.18.2: a minificação renomeia classes
+ * de que ele depende e os arquivos de dados ficam de fora. Aqui os nomes são preservados e os
+ * dados copiados.
+ */
+export const empacotarComCrawlee: FunctionBundler = async (funcao) => {
+  const { saida, entradas } = await construir(funcao, { keepNames: true })
+  return { 'index.mjs': saida, ...(await dadosDoGerador(entradas)) }
+}
+
+const skillEmbutida: Plugin = {
+  name: 'skill-embutida',
+  setup(construcao) {
+    construcao.onLoad({ filter: /[\\/]src[\\/]mcp[\\/]skill\.ts$/ }, async () => {
+      const texto = await readFile(join(RAIZ, 'skills/analise-precos/SKILL.md'), 'utf8')
+      return { contents: `export const SKILL_ANALISE_PRECOS = ${JSON.stringify(texto)}` }
+    })
+  },
+}
+
+/** A skill vai dentro do `index.mjs`: a função não depende de arquivo ao lado. */
+export const empacotarComSkill: FunctionBundler = async (funcao) => {
+  const { saida } = await construir(funcao, { plugins: [skillEmbutida] })
+  return { 'index.mjs': saida }
 }

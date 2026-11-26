@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { after, before, describe, test } from 'node:test'
 import { z } from 'zod'
-import { abrirBancoDeLeitura, EAN_101 } from '../banco/leituras-de-teste.ts'
+import { abrirBancoDeLeitura, EAN_101, EAN_REPETIDO } from '../banco/leituras-de-teste.ts'
+import { abrirLoteCheio } from '../banco/semente-de-teste.ts'
 import { urlDoBancoDeTeste } from '../config.ts'
 import { conectar } from '../funcoes/mcp-de-teste.ts'
 
@@ -19,13 +20,13 @@ after(async () => {
 })
 
 const Precos = z.object({
-  lojas: z.array(z.looseObject({ loja: z.string(), situacao: z.string() })),
-  lojasSemColeta: z.array(z.string()),
-})
-
-const Estatisticas = z.object({
-  atual: z.record(z.string(), z.number().nullable()),
-  porLoja: z.array(z.looseObject({ loja: z.string() })),
+  produtos: z.array(
+    z.object({
+      codprod: z.string(),
+      lojas: z.array(z.looseObject({ loja: z.string(), situacao: z.string() })),
+    }),
+  ),
+  naoEncontrados: z.array(z.string()),
 })
 
 const Saude = z.object({
@@ -34,185 +35,139 @@ const Saude = z.object({
       loja: z.string(),
       nome: z.string(),
       ativa: z.boolean(),
+      cobertura: z.object({ catalogo: z.number(), ok: z.number() }),
       ultimaRodada: z.looseObject({ idadeHoras: z.number() }).nullable(),
     }),
   ),
 })
 
-async function estatisticas(codprod: string, dias?: number) {
-  const argumentos = { produto: { codprod }, ...(dias === undefined ? {} : { dias }) }
-  return Estatisticas.parse(await mcp.responder('estatisticas_preco', argumentos))
+async function precos(argumentos: Record<string, unknown>) {
+  return Precos.parse(await mcp.responder('precos_atuais', argumentos))
 }
 
-function semPreco(loja: string, situacaoAtual: string | null) {
-  return {
-    loja,
-    situacaoAtual,
-    precoAtual: null,
-    mesmoPrecoDesde: null,
-    minimoNoPeriodo: null,
-    maximoNoPeriodo: null,
-  }
+function loja(codigo: string, situacao: string, preco: number | null) {
+  return { loja: codigo, situacao, preco, precoLista: null, promocao: null }
 }
 
-function daRodada(dias: number, situacao: string) {
-  const em = banco.haDias(dias)
-  return { coletadoEm: em, rodada: { agendadaPara: em, situacao } }
+function rodada(codigo: string, nome: string, dias: number, situacao: string) {
+  return { loja: codigo, nome, agendadaPara: banco.haDias(dias), situacao }
 }
 
 describe('precos_atuais', () => {
-  test('traz cada loja ativa pela última rodada concluída ou suspeita', async () => {
-    const semOferta = { precoLista: null, vendedor: null, url: null, detalhe: null }
-    assert.deepEqual(await mcp.responder('precos_atuais', { produto: { ean: EAN_101 } }), {
-      produto: {
-        codprod: '101',
-        ean: EAN_101,
-        descricao: 'TORNEIRA ELETRICA DE TESTE 220V',
-        nossoPreco: 100,
-      },
-      lojas: [
-        {
-          loja: 'abc',
-          nome: 'ABC da Construção',
-          situacao: 'SEM_ESTOQUE',
-          preco: 1,
-          ...semOferta,
-          ...daRodada(3, 'SUSPEITA'),
-        },
+  test('traz a rodada de cada loja uma vez e, por produto, o que ela viu', async () => {
+    const pedido = { produtos: [{ ean: EAN_101 }] }
+    assert.deepEqual(await mcp.responder('precos_atuais', pedido), {
+      rodadas: [
+        rodada('abc', 'ABC da Construção', 3, 'SUSPEITA'),
         // a rodada FALHOU de dois dias atrás não substitui a de nove
-        {
-          loja: 'condec',
-          nome: 'Condec',
-          situacao: 'OK',
-          preco: 120.01,
-          ...semOferta,
-          ...daRodada(9, 'CONCLUIDA'),
-        },
+        rodada('condec', 'Condec', 9, 'CONCLUIDA'),
         // nem a que ainda está rodando
-        {
-          loja: 'telhanorte',
-          nome: 'Telha Norte',
-          situacao: 'OK',
-          preco: 80,
-          precoLista: 85,
-          vendedor: 'Vendedor Inventado',
-          url: 'https://loja.teste/101',
-          detalhe: null,
-          ...daRodada(2, 'CONCLUIDA'),
-        },
+        rodada('telhanorte', 'Telha Norte', 2, 'CONCLUIDA'),
       ],
       lojasSemColeta: ['nova'],
+      produtos: [
+        {
+          codprod: '101',
+          descricao: 'TORNEIRA ELETRICA DE TESTE 220V',
+          nossoPreco: 100,
+          lojas: [
+            loja('abc', 'SEM_ESTOQUE', 1),
+            loja('condec', 'OK', 120.01),
+            { ...loja('telhanorte', 'OK', 80), precoLista: 85, promocao: 0.0588 },
+          ],
+        },
+      ],
+      naoEncontrados: [],
+    })
+  })
+
+  test('URL, vendedor, motivo e hora só vêm com detalhes', async () => {
+    const lido = await precos({ produtos: [{ codprod: '101' }], detalhes: true })
+    assert.partialDeepStrictEqual(lido.produtos[0]?.lojas[2], {
+      detalhes: {
+        vendedor: 'Vendedor Inventado',
+        url: 'https://loja.teste/101',
+        detalhe: null,
+        coletadoEm: banco.haDias(2),
+      },
+    })
+    const comErro = await precos({ produtos: [{ codprod: '102' }], detalhes: true })
+    assert.partialDeepStrictEqual(comErro.produtos[0]?.lojas[1], {
+      detalhes: { detalhe: 'HTTP 500' },
     })
   })
 
   test('a loja que não vende é distinta da coleta que falhou', async () => {
-    const lido = await mcp.responder('precos_atuais', { produto: { codprod: '102' } })
-    const lojas = Precos.parse(lido).lojas.map((l) => [l.loja, l.situacao, l.preco, l.detalhe])
-    assert.deepEqual(lojas, [
-      ['abc', 'OK', 15, null],
-      ['condec', 'ERRO', null, 'HTTP 500'],
-      ['telhanorte', 'NAO_ENCONTRADO', null, null],
-    ])
+    const [produto] = (await precos({ produtos: [{ codprod: '102' }] })).produtos
+    assert.deepEqual(
+      produto?.lojas.map((l) => [l.loja, l.situacao, l.preco]),
+      [
+        ['abc', 'OK', 15],
+        ['condec', 'ERRO', null],
+        ['telhanorte', 'NAO_ENCONTRADO', null],
+      ],
+    )
   })
 
-  test('o produto que nenhuma rodada perguntou fica em lojasSemColeta', async () => {
-    const lido = await mcp.responder('precos_atuais', { produto: { codprod: '104' } })
-    assert.partialDeepStrictEqual(lido, {
-      lojas: [],
-      lojasSemColeta: ['abc', 'condec', 'nova', 'telhanorte'],
-    })
-  })
-})
-
-describe('estatisticas_preco', () => {
-  test('resume só o que está à venda, contra o nosso preço', async () => {
-    const { atual } = await estatisticas('103')
-    assert.deepEqual(atual, {
-      lojasComPreco: 3,
-      minimo: 10,
-      maximo: 90,
-      media: 40,
-      mediana: 20,
-      nossoPreco: 30,
-      nossoContraMedianaPct: 50,
-    })
-  })
-
-  test('com duas lojas, a mediana é o meio; o sem estoque e a loja inativa não entram', async () => {
-    const { atual, porLoja } = await estatisticas('101')
-    assert.deepEqual(atual, {
-      lojasComPreco: 2,
-      minimo: 80,
-      maximo: 120.01,
-      media: 100.01,
-      mediana: 100.01,
-      nossoPreco: 100,
-      nossoContraMedianaPct: -0.01,
-    })
-    assert.deepEqual(porLoja, [
-      semPreco('abc', 'SEM_ESTOQUE'),
-      {
-        loja: 'condec',
-        situacaoAtual: 'OK',
-        precoAtual: 120.01,
-        mesmoPrecoDesde: banco.haDias(9),
-        minimoNoPeriodo: 120.01,
-        maximoNoPeriodo: 120.01,
-      },
-      semPreco('nova', null),
-      // o erro e a rodada interrompida no meio não quebram a sequência de 80
-      {
-        loja: 'telhanorte',
-        situacaoAtual: 'OK',
-        precoAtual: 80,
-        mesmoPrecoDesde: banco.haDias(30),
-        minimoNoPeriodo: 80,
-        maximoNoPeriodo: 90,
-      },
-    ])
+  test('o produto que nenhuma rodada perguntou vem sem lojas', async () => {
+    const lido = await precos({ produtos: [{ codprod: '104' }] })
+    assert.deepEqual(lido.produtos, [{ codprod: '104', lojas: [] }])
   })
 })
 
-describe('estatisticas_preco fora do caso comum', () => {
-  test('o período pedido limita o mínimo, o máximo e o desde quando', async () => {
-    const ano = await estatisticas('101', 365)
-    assert.partialDeepStrictEqual(ano.porLoja[3], {
-      mesmoPrecoDesde: banco.haDias(30),
-      minimoNoPeriodo: 50,
-      maximoNoPeriodo: 90,
-    })
-    const semana = await estatisticas('101', 7)
-    assert.partialDeepStrictEqual(semana.porLoja[3], {
-      mesmoPrecoDesde: banco.haDias(2),
-      minimoNoPeriodo: 80,
-      maximoNoPeriodo: 80,
-    })
-    // o preço atual é o da última rodada, mesmo mais velha que o período
-    assert.partialDeepStrictEqual(semana.porLoja[1], {
-      precoAtual: 120.01,
-      mesmoPrecoDesde: null,
-      minimoNoPeriodo: null,
-    })
+describe('precos_atuais em lote', () => {
+  test('segue a ordem do pedido, sem repetir, e o inexistente não derruba o lote', async () => {
+    const produtos = [
+      { codprod: '102' },
+      { codprod: '999' },
+      { ean: EAN_REPETIDO },
+      { codprod: '101' },
+      { ean: EAN_101 },
+      { codprod: '103' },
+      { ean: '2000000099999' },
+    ]
+    const lido = await precos({ produtos })
+    assert.deepEqual(
+      lido.produtos.map(({ codprod }) => codprod),
+      ['102', '103', '105', '101'],
+    )
+    assert.deepEqual(lido.naoEncontrados, ['999', '2000000099999'])
   })
 
-  test('sem o nosso preço não há comparação, e cada loja diz por que está sem preço', async () => {
-    const { atual, porLoja } = await estatisticas('102')
-    assert.partialDeepStrictEqual(atual, { lojasComPreco: 1, nossoContraMedianaPct: null })
-    assert.deepEqual(porLoja.slice(1), [
-      semPreco('condec', 'ERRO'),
-      semPreco('nova', null),
-      semPreco('telhanorte', 'NAO_ENCONTRADO'),
-    ])
+  test('um lote em que nada existe responde, com tudo em naoEncontrados', async () => {
+    const lido = await precos({ produtos: [{ codprod: '999' }] })
+    assert.deepEqual(lido, { produtos: [], naoEncontrados: ['999'] })
+  })
+})
+
+describe('o tamanho de um lote cheio, com todas as lojas das migrações', () => {
+  let cheio: Awaited<ReturnType<typeof abrirLoteCheio>>
+  let doCheio: Awaited<ReturnType<typeof conectar>>
+
+  before(async () => {
+    cheio = await abrirLoteCheio(urlDoBancoDeTeste())
+    doCheio = await conectar(cheio.urlDoLeitor)
   })
 
-  test('sem preço em loja nenhuma, o resumo é nulo', async () => {
-    const { atual } = await estatisticas('104')
-    assert.partialDeepStrictEqual(atual, {
-      lojasComPreco: 0,
-      minimo: null,
-      mediana: null,
-      nossoContraMedianaPct: null,
-    })
+  after(async () => {
+    await doCheio.cliente.close()
+    await cheio.apagar()
+  })
+
+  test('precos_atuais de 50 produtos cabe abaixo de 50 mil caracteres', async () => {
+    const { erro, texto } = await doCheio.chamar('precos_atuais', { produtos: cheio.produtos })
+    assert.equal(erro, false)
+    const lidos = Precos.parse(JSON.parse(texto)).produtos
+    assert.equal(lidos.length, 50)
+    assert.ok(lidos.every(({ lojas }) => lojas.length === cheio.lojas.length))
+    assert.ok(texto.length < 50_000, `${texto.length} caracteres`)
+  })
+
+  test('panorama_precos de 50 produtos cabe abaixo de 50 mil caracteres', async () => {
+    const escopo = { produtos: cheio.produtos }
+    const { erro, texto } = await doCheio.chamar('panorama_precos', { escopo, limite: 50 })
+    assert.equal(erro, false)
+    assert.ok(texto.length < 50_000, `${texto.length} caracteres`)
   })
 })
 
@@ -238,7 +193,7 @@ describe('saude_coleta', () => {
       situacao: 'SUSPEITA',
       agendadaPara: banco.haDias(3),
       concluidaEm: banco.haDias(3),
-      contagens: contagens({ OK: 2, SEM_ESTOQUE: 1 }),
+      contagens: contagens({ OK: 2, SEM_ESTOQUE: 1, NAO_ENCONTRADO: 120 }),
       avisos: [
         'os produtos com preço caíram de 10 para 2',
         'a coleta usou o token reserva da loja, porque não achou o token na home',
@@ -258,6 +213,22 @@ describe('saude_coleta', () => {
     // três dias desde o fecho; um dia desde o início da que roda
     assert.equal(Math.round(abc?.ultimaRodada?.idadeHoras ?? 0), 72)
     assert.equal(Math.round(telhanorte?.ultimaRodada?.idadeHoras ?? 0), 24)
+  })
+
+  test('a cobertura conta o OK da última rodada com preços, não o da que falhou', async () => {
+    const { lojas } = Saude.parse(await mcp.responder('saude_coleta', {}))
+    assert.deepEqual(
+      lojas.map(({ loja, cobertura }) => [loja, cobertura.ok, cobertura.catalogo]),
+      [
+        ['abc', 2, 125],
+        ['antiga', 1, 125],
+        // as de nove dias atrás: a FALHOU de depois não conta
+        ['condec', 122, 125],
+        ['nova', 0, 125],
+        // a rodada em andamento também não
+        ['telhanorte', 122, 125],
+      ],
+    )
   })
 
   test('uma loja só, quando pedida', async () => {
