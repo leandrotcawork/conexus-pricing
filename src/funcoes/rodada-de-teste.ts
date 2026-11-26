@@ -1,4 +1,3 @@
-/** A função da coleta montada contra uma loja em loopback, e a entrega que o gatilho faz a ela. */
 import { z } from 'zod'
 import { abrirLojaDeTeste, clienteNaLojaDeTeste, comGravacao } from '../coleta/loja-de-teste.ts'
 import { criarFuncaoColeta } from './coleta.ts'
@@ -24,13 +23,11 @@ export function entrega(codigo: string, agendadaPara: string, cabecalhos?: Recor
   })
 }
 
-/** Corta toda resposta pedida à VTEX com mais de um EAN. */
 export function cortaOLote(...[pedido]: Parameters<Roteiro>) {
   const emLote = pedido.caminho.split('alternateIds_Ean').length > 2
   return comGravacao(pedido, emLote ? 'truncado' : 'lote')
 }
 
-/** Uma loja em loopback e a função da coleta apontada para ela. */
 export async function montar(
   urlDoBanco: string,
   roteiro: Roteiro = (pedido) => comGravacao(pedido),
@@ -50,11 +47,10 @@ export async function montar(
         corpo: Corpo.parse(await resposta.json()),
       }
     },
-    /** Os EANs de cada pedido de preço que chegou à loja. */
     async eansPedidos() {
       return await Promise.all(
         loja.pedidos.map(async ({ caminho, corpo }) =>
-          `${decodeURIComponent(caminho)}${await corpo}`.match(/2000000000\d{3}/g),
+          `${decodeURIComponent(caminho)}${await corpo}`.match(/2000000\d{6}/g),
         ),
       )
     },

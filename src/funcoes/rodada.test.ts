@@ -1,7 +1,6 @@
-/** A rodada pela porta pública: o `fetch` da coleta, um Postgres descartável e lojas em loopback. */
 import assert from 'node:assert/strict'
 import { after, before, beforeEach, describe, test } from 'node:test'
-import { A, abrirBancoDeRodada, SEM_PRODUTO } from '../banco/rodadas-de-teste.ts'
+import { A, abrirBancoDeRodada, CATALOGO, SEM_PRODUTO } from '../banco/rodadas-de-teste.ts'
 import { comGravacao } from '../coleta/loja-de-teste.ts'
 import { urlDoBancoDeTeste } from '../config.ts'
 import { cortaOLote, HOJE, montar } from './rodada-de-teste.ts'
@@ -31,10 +30,11 @@ describe('uma rodada de cada loja', () => {
     test(`${codigo} grava uma observação por produto e fecha a rodada`, async () => {
       await using montada = await montar(banco.urlDoColetor)
       const contagens = { OK: 3, SEM_ESTOQUE: 0, SEM_PRECO: 0, NAO_ENCONTRADO: 1, ERRO: 0 }
-      const concluida = { situacao: 'CONCLUIDA', avisos: [], contagens }
+      const concluida = { situacao: 'CONCLUIDA', contagens }
       const { status, corpo } = await montada.disparar(codigo)
       assert.equal(status, 200)
       assert.partialDeepStrictEqual(corpo, { tipo: 'FECHADA', ...concluida })
+      assert.deepEqual(corpo.avisos, [])
       assert.deepEqual(await banco.situacoes(), [
         ['1', 'OK', precoA],
         ['2', 'OK', precoB],
@@ -46,7 +46,7 @@ describe('uma rodada de cada loja', () => {
       const [gravada] = await banco.rodadas()
       assert.partialDeepStrictEqual(gravada, { ...concluida, versao: 'e3' })
       assert.ok(gravada?.concluidaEm)
-      // o EAN repetido no catálogo é perguntado uma vez
+      assert.deepEqual(gravada.avisos, [])
       assert.equal(montada.loja.pedidos.length, pedidos)
     })
   }
@@ -108,11 +108,11 @@ describe('a mesma rodada entregue outra vez', () => {
 
 describe('o prazo da rodada', () => {
   test('o que não coube fica de fora, e a nova entrega completa sem repetir', async () => {
-    // cada resposta leva 600 ms, o lote é cortado e o prazo acaba no meio do um a um
+    const [atrasoMs, prazoMs] = [600, 1500]
     await using curta = await montar(
       banco.urlDoColetor,
-      (pedido, vez) => ({ ...cortaOLote(pedido, vez), atrasoMs: 600 }),
-      1500,
+      (pedido, vez) => ({ ...cortaOLote(pedido, vez), atrasoMs }),
+      prazoMs,
     )
     const primeira = await curta.disparar('telhanorte')
     assert.deepEqual(
@@ -128,15 +128,19 @@ describe('o prazo da rodada', () => {
       faltaram: 4 - gravadas,
     })
 
+    const jaGravados = new Set((await banco.observacoes()).map((o) => o.codprod))
+    const faltantes = CATALOGO.filter(([codprod]) => !jaGravados.has(codprod)).map(([, ean]) => ean)
+
     await using completa = await montar(banco.urlDoColetor)
     const segunda = await completa.disparar('telhanorte')
     assert.deepEqual([segunda.status, segunda.corpo.situacao], [200, 'CONCLUIDA'])
     assert.equal((await banco.observacoes()).length, 4)
+    assert.deepEqual(await completa.eansPedidos(), [[...new Set(faltantes)]])
+    // os avisos explicam o que a primeira tentativa gravou, e continuam na rodada concluída
     const finais = await banco.rodadas()
-    // os avisos da tentativa interrompida não ficam na rodada concluída
     assert.deepEqual(
-      finais.map((r) => r.avisos),
-      [[]],
+      finais.map((r) => r.avisos.map((aviso) => aviso.tipo)),
+      [['LOTE_REFEITO_UM_A_UM', 'PRAZO_ESGOTADO']],
     )
   })
 

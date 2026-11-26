@@ -1,4 +1,3 @@
-/** A suíte que todo adaptador passa, contra as gravações da própria plataforma. */
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { describe, test } from 'node:test'
@@ -9,7 +8,6 @@ import type { Adaptador, LeituraLote, Lotes, PedidoHttp, RespostaHttp } from './
 import type { Caso } from './gravacao.ts'
 import { lerGravacao } from './gravacao.ts'
 
-/** Os dois EANs inventados que as gravações usam no lugar dos reais. */
 export const EAN_A = Ean.parse('2000000000011')
 export const EAN_B = Ean.parse('2000000000012')
 
@@ -21,13 +19,10 @@ export type Cadastro = {
 
 type Conformidade = {
   readonly adaptador: Adaptador
-  /** A pasta das gravações, terminada em barra. */
   readonly gravacoes: URL
   readonly config: object
-  /** Cada uma destas, somada à config válida, tem de ser recusada. */
   readonly camposInvalidos: readonly object[]
   readonly origens: readonly string[]
-  /** Copia, na forma da loja, o primeiro cadastro do EAN com outro preço. */
   readonly comCadastro: (corpo: string, cadastro: Cadastro) => string
 }
 
@@ -35,7 +30,6 @@ export function gravacaoDe(pasta: URL, caso: Caso): RespostaHttp {
   return lerGravacao(readFileSync(new URL(`${caso}.txt`, pasta), 'utf8'))
 }
 
-/** Os lotes do adaptador aberto com a config dada, e o preparo que ele pede antes, se pede. */
 export function abrirLotes(
   adaptador: Adaptador,
   config: object,

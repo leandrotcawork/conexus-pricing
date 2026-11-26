@@ -80,7 +80,6 @@ function banco(slug: 'coleta' | 'mcp', url = urlDoBancoDeTeste()): Record<string
   return { COLETOR_DATABASE_URL: url }
 }
 
-/** Um banco migrado com um produto no catálogo; devolve a URL da role da coleta. */
 async function bancoDeRodada() {
   const descartavel = await criarBancoDescartavel(urlDoBancoDeTeste())
   await descartavel.migrar()

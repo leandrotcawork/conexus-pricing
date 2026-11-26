@@ -1,6 +1,5 @@
-/** O banco dos testes da rodada: três lojas semeadas, quatro produtos e o que ficou gravado. */
 import assert from 'node:assert/strict'
-import { asc, eq, sql } from 'drizzle-orm'
+import { asc, eq, inArray, sql } from 'drizzle-orm'
 import type { Banco } from './conexao.ts'
 import { abrirBanco, fecharBanco } from './conexao.ts'
 import { criarBancoDescartavel } from './descartavel.ts'
@@ -10,6 +9,13 @@ export const A = '2000000000011'
 export const B = '2000000000012'
 export const SEM_PRODUTO = '2000000000008'
 export const RESERVA = 'tcs_reserva_inventada_0000000000'
+
+export const CATALOGO = [
+  ['1', A],
+  ['2', B],
+  ['3', SEM_PRODUTO],
+  ['4', A],
+] as const
 
 function consultas(dono: Banco) {
   function observacoes() {
@@ -32,7 +38,6 @@ function consultas(dono: Banco) {
     async situacoes() {
       return (await observacoes()).map(({ codprod, situacao, preco }) => [codprod, situacao, preco])
     },
-    /** Uma rodada da Telha Norte ainda aberta, com o produto 2 já observado. */
     async deixarRodando(parada: {
       readonly agendadaPara: string
       readonly minutosSemSinal: number
@@ -66,14 +71,11 @@ export async function abrirBancoDeRodada(urlBase: string) {
   const descartavel = await criarBancoDescartavel(urlBase)
   await descartavel.migrar()
   const dono = abrirBanco(descartavel.urls.dono)
-  // o produto 4 repete o EAN do 1; o EAN do 3 nenhuma loja vende
-  await dono.insert(produto).values(
-    [A, B, SEM_PRODUTO, A].map((ean, indice) => ({
-      codprod: String(indice + 1),
-      ean,
-      descricao: `Item de teste ${indice + 1}`,
-    })),
-  )
+  await dono
+    .insert(produto)
+    .values(
+      CATALOGO.map(([codprod, ean]) => ({ codprod, ean, descricao: `Item de teste ${codprod}` })),
+    )
   async function darTokenReservaAAbc(): Promise<void> {
     const reserva = JSON.stringify({ tokenReserva: RESERVA })
     await dono
@@ -86,7 +88,22 @@ export async function abrirBancoDeRodada(urlBase: string) {
     ...consultas(dono),
     urlDoColetor: descartavel.urls.coletor,
     darTokenReservaAAbc,
-    /** Sem rodadas, com as três lojas ativas e a ABC com um token reserva. */
+    /** Mais produtos, cada um com o seu EAN, até o fim do `await using`. */
+    async crescerCatalogo(quantos: number) {
+      const itens = Array.from({ length: quantos }, (_, indice) => ({
+        codprod: String(100 + indice),
+        ean: String(2_000_000_100_000 + indice),
+        descricao: `Item extra ${indice + 1}`,
+      }))
+      const criados = await dono.insert(produto).values(itens).returning({ id: produto.id })
+      const ids = criados.map((criado) => criado.id)
+      return {
+        async [Symbol.asyncDispose](): Promise<void> {
+          await dono.delete(rodada)
+          await dono.delete(produto).where(inArray(produto.id, ids))
+        },
+      }
+    },
     async limpar(): Promise<void> {
       await dono.delete(rodada)
       await dono.update(fonte).set({ ativa: true })

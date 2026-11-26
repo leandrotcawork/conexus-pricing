@@ -1,6 +1,5 @@
--- As três lojas da primeira versão. Os tamanhos de lote são os do MetalPrice
--- (vtex.py:21-22, tray.py:32-36, wake.py:36-38). A ABC nasce sem `tokenReserva`: o valor é da
--- loja e não entra no repositório. Enquanto ele faltar, a rodada dela fecha como config inválida.
+-- Os tamanhos de lote são os do MetalPrice (vtex.py:21-22, tray.py:32-36, wake.py:36-38).
+-- A ABC nasce sem `tokenReserva`: o valor é da loja e não entra neste repositório público.
 INSERT INTO precos.fonte (codigo, nome, plataforma, config) VALUES
   ('telhanorte', 'Telha Norte', 'vtex',
     '{"origem": "https://www.telhanorte.com.br", "lote": 50}'),

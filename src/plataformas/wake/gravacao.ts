@@ -13,7 +13,6 @@ function porPagina(pedido: PedidoHttp, n: number): PedidoHttp {
   return { ...pedido, corpo: JSON.stringify({ query, variables: { ...variables, n } }) }
 }
 
-/** Da home só importa o trecho que declara o token, com o token trocado. */
 function inventarHome(html: string): string {
   const [trecho, token] = TOKEN_NO_HTML.exec(html) ?? []
   if (!trecho || !token) return '<!doctype html>\n<title>sem token</title>'

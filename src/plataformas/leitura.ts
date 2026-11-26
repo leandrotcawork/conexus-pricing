@@ -6,7 +6,6 @@ import type { Adaptador, LeituraLote, PlanoDeColeta, RespostaHttp } from './cont
 
 export const UrlHttps = z.url({ protocol: /^https$/ })
 
-/** Os caminhos que o Zod recusou, sem os valores: um deles pode ser um token. */
 function camposRecusados(erro: z.ZodError): string {
   return [...new Set(erro.issues.map((issue) => issue.path.join('.') || '(raiz)'))].join(', ')
 }

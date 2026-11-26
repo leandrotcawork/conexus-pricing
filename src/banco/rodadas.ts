@@ -1,4 +1,3 @@
-/** O que a coleta lê e grava no banco, com a role `precos_coletor`. */
 import { and, asc, count, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import type { Fonte } from '../dominio/fonte.ts'
@@ -28,24 +27,19 @@ type Tomada = {
   readonly rodadaId: RodadaId
 }
 
-/** O sinal de uma rodada viva nunca fica mais velho que o limite de 15 minutos da função. */
+// pesquisa.py:21-47: tanto tempo sem sinal é processo morto; a rodada viva dá sinal a cada resposta
 const ORFA = sql`now() - interval '15 minutes'`
 
-/**
- * Uma rodada por loja e horário agendado: cria, retoma a que falhou, foi interrompida ou ficou
- * órfã, e deixa como está a concluída e a que ainda roda. Uma só instrução decide quem a toma.
- */
 export async function tomarRodada(
   banco: Banco,
   pedido: { readonly fonteId: FonteId; readonly agendadaPara: Date; readonly versao: string },
 ): Promise<Tomada> {
-  const recomeco = { situacao: 'RODANDO', sinalEm: sql`now()`, avisos: [] } as const
+  const recomeco = { situacao: 'RODANDO', sinalEm: sql`now()` } as const
   const [tomada] = await banco
     .insert(rodada)
-    .values({ ...pedido, ...recomeco, iniciadaEm: sql`now()`, contagens: {} })
+    .values({ ...pedido, ...recomeco, iniciadaEm: sql`now()`, contagens: {}, avisos: [] })
     .onConflictDoUpdate({
       target: [rodada.fonteId, rodada.agendadaPara],
-      // os avisos recomeçam: o prazo esgotado da tentativa anterior deixa de valer
       set: { ...recomeco, concluidaEm: null, versao: pedido.versao },
       setWhere: or(
         inArray(rodada.situacao, ['FALHOU', 'INTERROMPIDA']),
@@ -69,7 +63,6 @@ export async function tomarRodada(
 const Pendente = z.object({ id: ProdutoId, ean: Ean })
 export type ProdutoPendente = z.infer<typeof Pendente>
 
-/** Os produtos que a rodada ainda não observou. É o que uma retomada pergunta. */
 export async function produtosPendentes(
   banco: Banco,
   rodadaId: RodadaId,
@@ -111,10 +104,6 @@ function acrescentando(avisos: readonly Aviso[]) {
   return sql`${rodada.avisos} || ${JSON.stringify(avisos)}::jsonb`
 }
 
-/**
- * Grava um lote numa transação, com o sinal de que a rodada está viva. Gravar o mesmo produto
- * outra vez não muda nada: vale a primeira observação.
- */
 export async function registrar(
   banco: Banco,
   lote: {
@@ -151,7 +140,6 @@ export async function contar(banco: Banco, rodadaId: RodadaId): Promise<Contagen
   return contagens
 }
 
-/** Os OK da última rodada concluída desta loja antes deste horário; null se não houve. */
 export async function okDaUltimaConcluida(
   banco: Banco,
   { fonteId, antesDe }: { readonly fonteId: FonteId; readonly antesDe: Date },
@@ -171,7 +159,6 @@ export async function okDaUltimaConcluida(
   return anterior?.contagens.OK ?? null
 }
 
-/** Fecha a rodada que ainda está rodando e devolve todos os avisos dela. */
 export async function fecharRodada(
   banco: Banco,
   fecho: {

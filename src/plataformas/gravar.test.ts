@@ -35,7 +35,6 @@ const LOJAS = [
   },
 ]
 
-/** A resposta original que teria gerado a gravação: valores que não podem sair no arquivo. */
 function comValoresSecretos(corpo: string): string {
   return corpo
     .replaceAll('2000000000011', EANS_REAIS[0] ?? '')

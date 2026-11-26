@@ -21,16 +21,14 @@ export type Contagens = { readonly [S in SituacaoObservacao]: number }
 /** Um palpite do primeiro estudo, ainda não medido: menos da metade dos OK de antes é suspeito. */
 const FRACAO_MINIMA_DE_OK = 0.5
 
-/** Como fecha uma rodada que perguntou todos os produtos. */
 export function classificar(rodada: {
   readonly contagens: Contagens
-  /** Os OK da última rodada concluída da mesma loja; null na primeira. */
   readonly okAnterior: number | null
-}): { readonly situacao: 'CONCLUIDA' | 'SUSPEITA'; readonly avisos: readonly Aviso[] } {
+}): { readonly situacao: 'CONCLUIDA' | 'SUSPEITA'; readonly aviso: Aviso | null } {
   const { contagens, okAnterior } = rodada
   if (okAnterior === null || contagens.OK >= okAnterior * FRACAO_MINIMA_DE_OK) {
-    return { situacao: 'CONCLUIDA', avisos: [] }
+    return { situacao: 'CONCLUIDA', aviso: null }
   }
-  const queda = { tipo: 'QUEDA_DE_OK', anterior: okAnterior, atual: contagens.OK } as const
-  return { situacao: 'SUSPEITA', avisos: [queda] }
+  const aviso = { tipo: 'QUEDA_DE_OK', anterior: okAnterior, atual: contagens.OK } as const
+  return { situacao: 'SUSPEITA', aviso }
 }

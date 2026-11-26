@@ -71,7 +71,6 @@ describe('Tray', () => {
       url: `${ORIGEM}/produto-inventado-2`,
       cadastros: 2,
     })
-    // o cadastro morto do B é o mais barato dos dois, sem estoque
     const doB = decidir(ofertas.get(EAN_B))
     assert.ok(doB.situacao === 'OK')
     assert.equal(doB.preco, 2090)

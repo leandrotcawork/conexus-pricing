@@ -1,4 +1,3 @@
-/** Uma rodada de uma loja: pergunta cada produto do catálogo e grava o que ela respondeu. */
 import type { Banco } from '../banco/conexao.ts'
 import type { Observado, ProdutoPendente } from '../banco/rodadas.ts'
 import {
@@ -47,7 +46,6 @@ type Rodada = Dependencias & { readonly rodadaId: RodadaId }
 
 type PorEan = ReadonlyMap<Ean, readonly ProdutoId[]>
 
-/** Dois produtos do catálogo podem ter o mesmo EAN: a loja é perguntada uma vez. */
 function agruparPorEan(produtos: readonly ProdutoPendente[]): PorEan {
   const grupos = new Map<Ean, ProdutoId[]>()
   for (const { ean, id } of produtos) {
@@ -83,14 +81,12 @@ type Passada = {
   readonly lotes: Lotes
   readonly grupos: PorEan
   readonly pedacos: readonly (readonly Ean[])[]
-  /** O que gravar quando a loja não deu uma resposta que valha para o pedaço. */
   readonly recusado: (
     eans: readonly Ean[],
     motivo: string,
   ) => { readonly observados: readonly Observado[]; readonly avisos: readonly Aviso[] }
 }
 
-/** Um pedido por pedaço; cada resposta é gravada antes do pedido seguinte. */
 async function perguntar(rodada: Rodada, passada: Passada): Promise<void> {
   const { lotes, grupos, pedacos, recusado } = passada
   if (pedacos.length === 0) return
@@ -111,20 +107,25 @@ async function perguntar(rodada: Rodada, passada: Passada): Promise<void> {
   )
 }
 
+type Bloco = {
+  readonly lotes: Lotes
+  readonly grupos: PorEan
+  readonly eans: readonly Ean[]
+}
+
 /**
  * Primeiro em lotes. O que um lote recusado não respondeu é perguntado um a um, com aviso
  * (vtex.py:76-84,95-97); o EAN que falha também assim vira ERRO com o motivo.
  */
-async function coletar(rodada: Rodada, lotes: Lotes): Promise<void> {
-  const grupos = agruparPorEan(await produtosPendentes(rodada.banco, rodada.rodadaId))
+async function coletarBloco(rodada: Rodada, { lotes, grupos, eans }: Bloco): Promise<void> {
   const umAUm: Ean[] = []
   await perguntar(rodada, {
     lotes,
     grupos,
-    pedacos: emLotes([...grupos.keys()], lotes.maximo),
-    recusado(eans, motivo) {
-      umAUm.push(...eans)
-      const aviso = { tipo: 'LOTE_REFEITO_UM_A_UM', eans: eans.length, motivo } as const
+    pedacos: emLotes(eans, lotes.maximo),
+    recusado(recusados, motivo) {
+      umAUm.push(...recusados)
+      const aviso = { tipo: 'LOTE_REFEITO_UM_A_UM', eans: recusados.length, motivo } as const
       return { observados: [], avisos: [aviso] }
     },
   })
@@ -132,14 +133,26 @@ async function coletar(rodada: Rodada, lotes: Lotes): Promise<void> {
     lotes,
     grupos,
     pedacos: emLotes(umAUm, 1),
-    recusado: (eans, detalhe) => ({
-      observados: observados(grupos, eans, () => ({ situacao: 'ERRO', detalhe })),
+    recusado: (recusados, detalhe) => ({
+      observados: observados(grupos, recusados, () => ({ situacao: 'ERRO', detalhe })),
       avisos: [],
     }),
   })
 }
 
-/** null quando o prazo acabou antes do preparo que a loja exige. */
+/**
+ * Um bloco por vez (pesquisa.py:17-19,137-148): se todos os lotes viessem antes do primeiro um a
+ * um, lotes que só falham devagar gastariam o prazo de cada entrega sem gravar nada.
+ */
+const EANS_POR_BLOCO = 150
+
+async function coletar(rodada: Rodada, lotes: Lotes): Promise<void> {
+  const grupos = agruparPorEan(await produtosPendentes(rodada.banco, rodada.rodadaId))
+  for (const eans of emLotes([...grupos.keys()], EANS_POR_BLOCO)) {
+    await coletarBloco(rodada, { lotes, grupos, eans })
+  }
+}
+
 async function preparar(rodada: Rodada, plano: PlanoDeColeta): Promise<Lotes | null> {
   if (plano.tipo === 'DIRETO') return plano.lotes
   let lotes: Lotes | null = null
@@ -166,9 +179,10 @@ async function fechar(rodada: Rodada, fonte: Fonte, agendadaPara: Date): Promise
     return { tipo: 'INTERROMPIDA', rodadaId }
   }
   const okAnterior = await okDaUltimaConcluida(banco, { fonteId: fonte.id, antesDe: agendadaPara })
-  const classe = classificar({ contagens, okAnterior })
-  const avisos = await fecharRodada(banco, { rodadaId, contagens, ...classe })
-  return { tipo: 'FECHADA', rodadaId, situacao: classe.situacao, contagens, avisos }
+  const { situacao, aviso } = classificar({ contagens, okAnterior })
+  const novos = aviso ? [aviso] : []
+  const avisos = await fecharRodada(banco, { rodadaId, situacao, contagens, avisos: novos })
+  return { tipo: 'FECHADA', rodadaId, situacao, contagens, avisos }
 }
 
 export async function executarRodada(

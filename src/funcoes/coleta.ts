@@ -38,7 +38,6 @@ function responder(resultado: ResultadoRodada): Response {
   }
 }
 
-/** `criarHttp` troca o cliente de cada rodada, para o teste responder no lugar das lojas. */
 export function criarFuncaoColeta(
   config: ReturnType<typeof configDaColeta>,
   criarHttp?: () => ClienteHttp,
@@ -64,7 +63,6 @@ export function criarFuncaoColeta(
       if (pedido.method === 'GET' && pathname === '/') {
         return respostaDeSaude(await coletor.saude())
       }
-      // uma rota por loja: o caminho é o código dela
       if (pedido.method !== 'POST' || pathname === '/') return naoEncontrado()
       return await rodar(pedido, pathname.slice(1))
     },

@@ -1,4 +1,3 @@
-/** O que a rodada faz quando a loja, a config ou a entrega não prestam. */
 import assert from 'node:assert/strict'
 import { after, before, beforeEach, describe, test } from 'node:test'
 import { eq, sql } from 'drizzle-orm'
@@ -29,10 +28,8 @@ describe('quando a loja não responde direito', () => {
     await using montada = await montar(banco.urlDoColetor, cortaOLote)
     const { corpo } = await montada.disparar('telhanorte')
     const motivo = 'resposta cortada: 1 de 2'
-    assert.partialDeepStrictEqual(corpo, {
-      situacao: 'CONCLUIDA',
-      avisos: [{ tipo: 'LOTE_REFEITO_UM_A_UM', eans: 3, motivo }],
-    })
+    assert.partialDeepStrictEqual(corpo, { situacao: 'CONCLUIDA' })
+    assert.deepEqual(corpo.avisos, [{ tipo: 'LOTE_REFEITO_UM_A_UM', eans: 3, motivo }])
     assert.deepEqual(await montada.eansPedidos(), [[A, B, SEM_PRODUTO], [A], [B], [SEM_PRODUTO]])
     const gravadas = (await banco.observacoes()).map((o) => o.situacao)
     assert.deepEqual(gravadas, ['OK', 'OK', 'NAO_ENCONTRADO', 'OK'])
@@ -47,8 +44,8 @@ describe('quando a loja não responde direito', () => {
       assert.deepEqual([situacao, preco], ['ERRO', null])
       assert.match(detalhe ?? '', /500/)
     }
-    // o lote e cada um dos três EANs, cada um com uma repetição
-    assert.equal(montada.loja.pedidos.length, 8)
+    const [lote, umAUm, vezes] = [1, 3, 2]
+    assert.equal(montada.loja.pedidos.length, (lote + umAUm) * vezes)
   })
 
   test('o 403 num EAN só não derruba os outros', async () => {
@@ -69,10 +66,8 @@ describe('quando a loja não responde direito', () => {
       pedido.metodo === 'GET' ? { status: 500 } : comGravacao(pedido),
     )
     const { corpo } = await montada.disparar('abc')
-    assert.partialDeepStrictEqual(corpo, {
-      situacao: 'CONCLUIDA',
-      avisos: [{ tipo: 'TOKEN_RESERVA_EM_USO' }],
-    })
+    assert.partialDeepStrictEqual(corpo, { situacao: 'CONCLUIDA' })
+    assert.deepEqual(corpo.avisos, [{ tipo: 'TOKEN_RESERVA_EM_USO' }])
     const consulta = montada.loja.pedidos.find((p) => p.metodo === 'POST')
     assert.equal(consulta?.cabecalhos['tcs-access-token'], RESERVA)
   })
@@ -85,12 +80,27 @@ describe('quando a loja não responde direito', () => {
     await montada.disparar('telhanorte', HOJE)
     virada = performance.now()
     const { corpo } = await montada.disparar('telhanorte', SEMANA_QUE_VEM)
-    assert.partialDeepStrictEqual(corpo, {
-      situacao: 'SUSPEITA',
-      avisos: [{ tipo: 'QUEDA_DE_OK', anterior: 3, atual: 0 }],
-    })
+    assert.partialDeepStrictEqual(corpo, { situacao: 'SUSPEITA' })
+    assert.deepEqual(corpo.avisos, [{ tipo: 'QUEDA_DE_OK', anterior: 3, atual: 0 }])
     const gravadas = (await banco.rodadas()).map((r) => r.situacao)
     assert.deepEqual(gravadas, ['CONCLUIDA', 'SUSPEITA'])
+  })
+})
+
+/** Um bloco no fio: os lotes, e depois cada EAN dos lotes recusados sozinho. */
+function blocoRecusado(...lotes: number[]) {
+  const eans = lotes.reduce((total, lote) => total + lote, 0)
+  return [...lotes, ...Array.from({ length: eans }, () => 1)]
+}
+
+describe('um catálogo maior que um bloco', () => {
+  test('cada bloco de 150 EANs vai um a um antes de o bloco seguinte começar', async () => {
+    await using _ = await banco.crescerCatalogo(200)
+    await using montada = await montar(banco.urlDoColetor, cortaOLote)
+    await montada.disparar('telhanorte')
+    const tamanhos = (await montada.eansPedidos()).map((eans) => eans?.length)
+    assert.deepEqual(tamanhos, [...blocoRecusado(50, 50, 50), ...blocoRecusado(50, 3)])
+    assert.equal((await banco.observacoes()).length, 204)
   })
 })
 
@@ -149,6 +159,9 @@ describe('o que não roda', () => {
 
     await banco.darTokenReservaAAbc()
     assert.equal((await montada.disparar('abc')).status, 200)
-    assert.partialDeepStrictEqual(await banco.rodadas(), [{ situacao: 'CONCLUIDA', avisos: [] }])
+    const [consertada] = await banco.rodadas()
+    assert.equal(consertada?.situacao, 'CONCLUIDA')
+    // o histórico da rodada fica: houve uma entrega com a config errada
+    assert.deepEqual(consertada.avisos, [{ tipo: 'CONFIG_INVALIDA', motivo }])
   })
 })
