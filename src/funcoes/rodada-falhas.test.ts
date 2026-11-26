@@ -87,6 +87,38 @@ describe('quando a loja não responde direito', () => {
   })
 })
 
+describe('a ABC sem token reserva na config', () => {
+  beforeEach(async () => {
+    const semReserva = sql`${fonte.config} - 'tokenReserva'`
+    await banco.dono.update(fonte).set({ config: semReserva }).where(eq(fonte.codigo, 'abc'))
+  })
+
+  test('com o token na home, a rodada usa esse token e não avisa', async () => {
+    await using montada = await montar(banco.urlDoColetor)
+    const { status, corpo } = await montada.disparar('abc')
+    assert.equal(status, 200)
+    assert.partialDeepStrictEqual(corpo, { situacao: 'CONCLUIDA' })
+    assert.deepEqual(corpo.avisos, [])
+    const consulta = montada.loja.pedidos.find((p) => p.metodo === 'POST')
+    assert.equal(consulta?.cabecalhos['tcs-access-token'], 'tcs_inventado_00000000000000000000')
+  })
+
+  test('com a home fora, 500 e rodada FALHOU com o motivo, sem pedir os lotes', async () => {
+    await using montada = await montar(banco.urlDoColetor, (pedido) =>
+      pedido.metodo === 'GET' ? { status: 500 } : comGravacao(pedido),
+    )
+    const { status, corpo } = await montada.disparar('abc')
+    const motivo = 'sem token de vitrine na home da loja e sem tokenReserva na config'
+    assert.equal(status, 500)
+    assert.partialDeepStrictEqual(corpo, { tipo: 'PREPARO_FALHOU', motivo })
+    assert.partialDeepStrictEqual(await banco.rodadas(), [
+      { situacao: 'FALHOU', avisos: [{ tipo: 'PREPARO_FALHOU', motivo }] },
+    ])
+    assert.ok(montada.loja.pedidos.every((p) => p.metodo === 'GET'))
+    assert.deepEqual(await banco.observacoes(), [])
+  })
+})
+
 /** Um bloco no fio: os lotes, e depois cada EAN dos lotes recusados sozinho. */
 function blocoRecusado(...lotes: number[]) {
   const eans = lotes.reduce((total, lote) => total + lote, 0)
@@ -144,9 +176,9 @@ describe('o que não roda', () => {
   })
 
   test('config inválida: 500, rodada FALHOU com o motivo, e retomada depois do conserto', async () => {
-    const daAbc = eq(fonte.codigo, 'abc')
-    const semReserva = sql`${fonte.config} - 'tokenReserva'`
-    await banco.dono.update(fonte).set({ config: semReserva }).where(daAbc)
+    const curta = JSON.stringify({ tokenReserva: 'curto' })
+    const comReservaCurta = sql`${fonte.config} || ${curta}::jsonb`
+    await banco.dono.update(fonte).set({ config: comReservaCurta }).where(eq(fonte.codigo, 'abc'))
     await using montada = await montar(banco.urlDoColetor)
     const { status, corpo } = await montada.disparar('abc')
     const motivo = 'config inválida em tokenReserva'

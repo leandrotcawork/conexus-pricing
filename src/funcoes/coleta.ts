@@ -32,6 +32,7 @@ function responder(resultado: ResultadoRodada): Response {
     case 'FONTE_DESCONHECIDA':
       return Response.json(resultado, { status: 404 })
     case 'CONFIG_INVALIDA':
+    case 'PREPARO_FALHOU':
       return Response.json(resultado, { status: 500 })
     default:
       return resultado satisfies never

@@ -26,7 +26,7 @@ const Config = z.object({
   loja: UrlHttps,
   api: UrlHttps,
   lote: z.number().int().min(1).max(EANS_POR_LOTE_NO_MAXIMO),
-  tokenReserva: z.string().min(20),
+  tokenReserva: z.string().min(20).optional(),
 })
 type Config = z.infer<typeof Config>
 
@@ -91,9 +91,14 @@ export const wake = criarAdaptador({
     preparo: { url: config.loja, metodo: 'GET', cabecalhos: { accept: 'text/html' }, corpo: null },
     lerPreparo(resposta) {
       const lido = resposta?.status === 200 ? TOKEN_NO_HTML.exec(resposta.corpo)?.[1] : undefined
-      if (lido) return { lotes: lotesCom(config, lido), avisos: [] }
+      if (lido) return { tipo: 'PREPARADO', lotes: lotesCom(config, lido), avisos: [] }
+      if (config.tokenReserva === undefined) {
+        const motivo = 'sem token de vitrine na home da loja e sem tokenReserva na config'
+        return { tipo: 'PREPARO_FALHOU', motivo }
+      }
       // o MetalPrice caía na reserva calado (wake.py:73-78)
       return {
+        tipo: 'PREPARADO',
         lotes: lotesCom(config, config.tokenReserva),
         avisos: [{ tipo: 'TOKEN_RESERVA_EM_USO' }],
       }

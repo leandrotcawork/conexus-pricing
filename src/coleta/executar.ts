@@ -15,7 +15,7 @@ import type { Observacao } from '../dominio/observacao.ts'
 import { decidir } from '../dominio/observacao.ts'
 import type { Aviso, Contagens } from '../dominio/rodada.ts'
 import { classificar } from '../dominio/rodada.ts'
-import type { LeituraLote, Lotes, PlanoDeColeta } from '../plataformas/contrato.ts'
+import type { LeituraLote, Lotes, PlanoDeColeta, Preparo } from '../plataformas/contrato.ts'
 import { ADAPTADORES } from '../plataformas/registro.ts'
 import type { ClienteHttp, ResultadoHttp } from './http.ts'
 
@@ -33,6 +33,7 @@ export type ResultadoRodada =
   | { readonly tipo: 'FONTE_INATIVA' }
   | { readonly tipo: 'FONTE_DESCONHECIDA' }
   | { readonly tipo: 'CONFIG_INVALIDA'; readonly rodadaId: RodadaId; readonly motivo: string }
+  | { readonly tipo: 'PREPARO_FALHOU'; readonly rodadaId: RodadaId; readonly motivo: string }
 
 type Dependencias = { readonly banco: Banco; readonly http: ClienteHttp }
 
@@ -153,20 +154,27 @@ async function coletar(rodada: Rodada, lotes: Lotes): Promise<void> {
   }
 }
 
-async function preparar(rodada: Rodada, plano: PlanoDeColeta): Promise<Lotes | null> {
-  if (plano.tipo === 'DIRETO') return plano.lotes
-  let lotes: Lotes | null = null
+async function preparar(rodada: Rodada, plano: PlanoDeColeta): Promise<Preparo | null> {
+  if (plano.tipo === 'DIRETO') return { tipo: 'PREPARADO', lotes: plano.lotes, avisos: [] }
+  let preparo: Preparo | null = null
   await rodada.http.buscar([plano.preparo], async (_, resultado) => {
     const resposta = resultado.tipo === 'RESPONDEU' ? resultado.resposta : null
     const preparado = plano.lerPreparo(resposta)
-    lotes = preparado.lotes
+    preparo = preparado
+    if (preparado.tipo === 'PREPARO_FALHOU') return
     await registrar(rodada.banco, {
       rodadaId: rodada.rodadaId,
       observados: [],
       avisos: preparado.avisos,
     })
   })
-  return lotes
+  return preparo
+}
+
+async function falhar(rodada: Rodada, aviso: Aviso): Promise<void> {
+  const { banco, rodadaId } = rodada
+  const contagens = await contar(banco, rodadaId)
+  await fecharRodada(banco, { rodadaId, situacao: 'FALHOU', contagens, avisos: [aviso] })
 }
 
 async function fechar(rodada: Rodada, fonte: Fonte, agendadaPara: Date): Promise<ResultadoRodada> {
@@ -201,12 +209,15 @@ export async function executarRodada(
   const aberto = ADAPTADORES[fonte.plataforma].abrir(fonte.config)
   if (aberto.tipo === 'CONFIG_INVALIDA') {
     const { motivo } = aberto
-    const contagens = await contar(banco, rodadaId)
-    const avisos = [{ tipo: 'CONFIG_INVALIDA', motivo }] as const
-    await fecharRodada(banco, { rodadaId, situacao: 'FALHOU', contagens, avisos })
+    await falhar(rodada, { tipo: 'CONFIG_INVALIDA', motivo })
     return { tipo: 'CONFIG_INVALIDA', rodadaId, motivo }
   }
-  const lotes = await preparar(rodada, aberto.plano)
-  if (lotes) await coletar(rodada, lotes)
+  const preparo = await preparar(rodada, aberto.plano)
+  if (preparo?.tipo === 'PREPARO_FALHOU') {
+    const { motivo } = preparo
+    await falhar(rodada, { tipo: 'PREPARO_FALHOU', motivo })
+    return { tipo: 'PREPARO_FALHOU', rodadaId, motivo }
+  }
+  if (preparo) await coletar(rodada, preparo.lotes)
   return await fechar(rodada, fonte, agendadaPara)
 }

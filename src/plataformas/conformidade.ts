@@ -39,7 +39,9 @@ export function abrirLotes(
   assert.ok(aberto.tipo === 'ABERTO')
   const { plano } = aberto
   if (plano.tipo === 'DIRETO') return { lotes: plano.lotes, preparo: null }
-  return { lotes: plano.lerPreparo(preparo()).lotes, preparo: plano.preparo }
+  const preparado = plano.lerPreparo(preparo())
+  assert.ok(preparado.tipo === 'PREPARADO', JSON.stringify(preparado))
+  return { lotes: preparado.lotes, preparo: plano.preparo }
 }
 
 export function lido(leitura: LeituraLote) {

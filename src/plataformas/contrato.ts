@@ -29,16 +29,18 @@ export type Lotes = {
   ler(resposta: RespostaHttp, eans: readonly Ean[]): LeituraLote
 }
 
+/** PREPARO_FALHOU quando não há com que pedir os lotes; a rodada falha com o motivo. */
+export type Preparo =
+  | { readonly tipo: 'PREPARADO'; readonly lotes: Lotes; readonly avisos: readonly Aviso[] }
+  | { readonly tipo: 'PREPARO_FALHOU'; readonly motivo: string }
+
 export type PlanoDeColeta =
   | { readonly tipo: 'DIRETO'; readonly lotes: Lotes }
   | {
       readonly tipo: 'COM_PREPARO'
       readonly preparo: PedidoHttp
       /** null quando o preparo falhou; o adaptador decide o recuo e o declara em avisos. */
-      lerPreparo(resposta: RespostaHttp | null): {
-        readonly lotes: Lotes
-        readonly avisos: readonly Aviso[]
-      }
+      lerPreparo(resposta: RespostaHttp | null): Preparo
     }
 
 export type Adaptador = {

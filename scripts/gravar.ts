@@ -109,9 +109,10 @@ if (cru) mkdirSync(cru, { recursive: true })
 
 async function abrirLotes(plano: PlanoDeColeta): Promise<Lotes> {
   if (plano.tipo === 'DIRETO') return plano.lotes
-  const { lotes, avisos } = plano.lerPreparo(await gravar('preparo', plano.preparo))
-  for (const aviso of avisos) console.log(`aviso: ${aviso.tipo}`)
-  return lotes
+  const preparado = plano.lerPreparo(await gravar('preparo', plano.preparo))
+  if (preparado.tipo === 'PREPARO_FALHOU') throw new Error(preparado.motivo)
+  for (const aviso of preparado.avisos) console.log(`aviso: ${aviso.tipo}`)
+  return preparado.lotes
 }
 
 const lotes = await abrirLotes(aberto.plano)

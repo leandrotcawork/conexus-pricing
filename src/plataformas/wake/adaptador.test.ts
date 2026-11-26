@@ -35,17 +35,27 @@ conformidade({
   comCadastro,
 })
 
+const SEM_RESERVA = { loja: LOJA, api: API, lote: 25 }
+
 describe('Wake: o token de vitrine', () => {
-  function preparar(resposta: RespostaHttp | null) {
-    const aberto = wake.abrir(CONFIG)
+  function preparar(resposta: RespostaHttp | null, config: object = CONFIG) {
+    const aberto = wake.abrir(config)
     assert.ok(aberto.tipo === 'ABERTO' && aberto.plano.tipo === 'COM_PREPARO')
-    const { lotes, avisos } = aberto.plano.lerPreparo(resposta)
+    const preparado = aberto.plano.lerPreparo(resposta)
+    if (preparado.tipo === 'PREPARO_FALHOU') return preparado
+    const { lotes, avisos } = preparado
     return { token: lotes.pedido([EAN_A]).cabecalhos['tcs-access-token'], avisos }
   }
 
-  test('é o que a home da loja declara', () => {
-    assert.deepEqual(preparar(home), { token: 'tcs_inventado_00000000000000000000', avisos: [] })
-  })
+  for (const [nome, config] of [
+    ['com', CONFIG],
+    ['sem', SEM_RESERVA],
+  ] as const) {
+    test(`é o que a home da loja declara, ${nome} token reserva na config`, () => {
+      const esperado = { token: 'tcs_inventado_00000000000000000000', avisos: [] }
+      assert.deepEqual(preparar(home, config), esperado)
+    })
+  }
 
   const semToken = [
     { nome: 'a home não respondeu', resposta: null },
@@ -57,6 +67,13 @@ describe('Wake: o token de vitrine', () => {
       assert.deepEqual(preparar(resposta), {
         token: RESERVA,
         avisos: [{ tipo: 'TOKEN_RESERVA_EM_USO' }],
+      })
+    })
+
+    test(`quando ${nome} e não há reserva, o preparo falha com o motivo`, () => {
+      assert.deepEqual(preparar(resposta, SEM_RESERVA), {
+        tipo: 'PREPARO_FALHOU',
+        motivo: 'sem token de vitrine na home da loja e sem tokenReserva na config',
       })
     })
   }

@@ -80,4 +80,25 @@ describe('prazo final', () => {
     assert.deepEqual(resumo(resultados), ['sem resposta'])
     assert.equal(loja.pedidos.length, 1)
   })
+
+  test('depois de um Retry-After além do prazo, nada mais sai para a loja no mesmo cliente', async () => {
+    await using loja = await abrirLojaDeTeste((pedido) =>
+      pedido.caminho === '/a'
+        ? { status: 429, cabecalhos: { 'retry-after': '600' } }
+        : { status: 200 },
+    )
+    const cliente = clienteCrawlee(ate(5000))
+    const respondidos: string[] = []
+    for (const caminhos of [['/a', '/b'], ['/c'], ['/d', '/e']]) {
+      const pedidos = caminhos.map((caminho) => get(loja.url(caminho)))
+      await cliente.buscar(pedidos, async (indice) => {
+        respondidos.push(caminhos[indice] ?? '')
+      })
+    }
+    assert.deepEqual(
+      loja.pedidos.map((p) => p.caminho),
+      ['/a'],
+    )
+    assert.deepEqual(respondidos, [])
+  })
 })

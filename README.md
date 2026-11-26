@@ -81,10 +81,11 @@ A publicação não roda no CI. Cada uma é feita à mão, com a autorização d
    curl "$URL_DO_MCP/"
    ```
 
-6. Uma vez, grave o token reserva da ABC. É o valor que o site da loja envia no cabeçalho
-   `TCS-Access-Token`, visível nas requisições do navegador. A coleta lê o token do site a cada rodada e
-   só usa o reserva quando não o acha. Sem ele a rodada da ABC fecha como `FALHOU`, com o aviso
-   `CONFIG_INVALIDA`. Rode como dono do banco, no editor SQL do Neon:
+6. Se quiser, grave o token reserva da ABC. É o valor que o site da loja envia no cabeçalho
+   `TCS-Access-Token`, visível nas requisições do navegador. A coleta lê o token da home da loja a cada
+   rodada e só usa o reserva quando não o acha, com o aviso `TOKEN_RESERVA_EM_USO`. Sem token na home e
+   sem reserva, a rodada da ABC fecha como `FALHOU`, com o aviso `PREPARO_FALHOU` e o motivo. Rode como
+   dono do banco, no editor SQL do Neon:
 
    ```sql
    UPDATE precos.fonte
@@ -121,7 +122,7 @@ que a loja vende:
 ```sh
 node scripts/gravar.ts vtex '{"origem":"https://www.telhanorte.com.br","lote":50}' <ean> <ean>
 node scripts/gravar.ts tray '{"origem":"https://www.condec.com.br","lote":25}' <ean> <ean>
-node scripts/gravar.ts wake '{"loja":"https://www.abcdaconstrucao.com.br","api":"https://storefront-api.fbits.net/graphql","lote":25,"tokenReserva":"<token>"}' <ean> <ean>
+node scripts/gravar.ts wake '{"loja":"https://www.abcdaconstrucao.com.br","api":"https://storefront-api.fbits.net/graphql","lote":25}' <ean> <ean>
 ```
 
 O script faz um pedido por caso, com três segundos entre eles. Com `--cru <pasta fora do repositório>`,
