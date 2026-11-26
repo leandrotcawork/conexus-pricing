@@ -106,6 +106,7 @@ describe('uma rodada sem nenhum OK', () => {
 
     const outra = await montada.disparar('condec')
     assert.deepEqual([outra.status, outra.corpo.situacao], [200, 'FALHOU'])
+    assert.deepEqual(outra.corpo.avisos, corpo.avisos)
     assert.equal(montada.loja.pedidos.length, pedidos)
     assert.equal((await banco.observacoes()).length, 4)
   })
