@@ -8,7 +8,7 @@ import type { RespostaHttp } from '../plataformas/contrato.ts'
 import type { Caso } from '../plataformas/gravacao.ts'
 import { lerGravacao } from '../plataformas/gravacao.ts'
 import type { ClienteHttp } from './http.ts'
-import { clienteCrawlee } from './http.ts'
+import { clienteCrawlee, TETO_BYTES_POR_RESPOSTA } from './http.ts'
 
 type PedidoRecebido = {
   readonly caminho: string
@@ -74,10 +74,6 @@ export async function abrirLojaDeTeste(roteiro: Roteiro) {
   }
 }
 
-/**
- * O cliente de verdade, com cada pedido desviado para a loja de teste: a origem que o adaptador
- * pediu segue no cabeçalho `x-origem`. A config das lojas continua só aceitando HTTPS.
- */
 export function clienteNaLojaDeTeste(
   base: string,
   opcoes: { readonly prazoMs?: number } = {},
@@ -87,7 +83,7 @@ export function clienteNaLojaDeTeste(
     tentativas: 1,
     prazoPedidoMs: 10_000,
     esperaMaximaMs: 1000,
-    tetoBytes: 10 * 1024 * 1024,
+    tetoBytes: TETO_BYTES_POR_RESPOSTA,
     prazoFinal: new Date(Date.now() + (opcoes.prazoMs ?? 60_000)),
   })
   return {
@@ -109,7 +105,6 @@ const PLATAFORMA_DA_ORIGEM: Readonly<Record<string, Plataforma>> = {
   'https://storefront-api.fbits.net': 'wake',
 }
 
-/** Responde como a loja pedida respondeu quando foi gravada. A home da Wake é o preparo. */
 export function comGravacao(pedido: PedidoRecebido, caso: Caso = 'lote'): Roteada {
   const plataforma = PLATAFORMA_DA_ORIGEM[String(pedido.cabecalhos['x-origem'])]
   if (!plataforma) return { status: 404 }

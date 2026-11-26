@@ -1,5 +1,6 @@
 import { totalmem } from 'node:os'
 import { Readable } from 'node:stream'
+import { setTimeout as esperar } from 'node:timers/promises'
 import type { HttpCrawlerOptions, HttpCrawlingContext } from '@crawlee/http'
 import { Configuration, HttpCrawler, NonRetryableError, Session } from '@crawlee/http'
 import type { PedidoHttp, RespostaHttp } from '../plataformas/contrato.ts'
@@ -18,7 +19,7 @@ export type ResultadoHttp =
 
 type AoResponder = (indice: number, resultado: ResultadoHttp) => Promise<void>
 
-/** Um cliente por rodada: o navegador que a loja vê é o mesmo em todas as chamadas. */
+/** Um cliente por rodada: navegador, cookies e ritmo por minuto valem em todas as chamadas. */
 export type ClienteHttp = {
   /**
    * Um pedido por vez (uma conexão por loja), na ordem dada; aoResponder roda antes do próximo.
@@ -34,11 +35,15 @@ type OpcoesDoCliente = {
   readonly tentativas: number
   readonly prazoPedidoMs: number
   readonly esperaMaximaMs: number
-  /** Bytes do corpo já descomprimido; uma resposta maior falha sem repetir (code C59). */
   readonly tetoBytes: number
-  /** Nenhum pedido começa depois deste instante (code C57). */
   readonly prazoFinal: Date
 }
+
+/**
+ * Teto por resposta (code C59). A maior medida tem 1,6 MB (a home da ABC); um lote de 50 da VTEX,
+ * com os 45 KB do maior produto visto, chegaria a 2,3 MB.
+ */
+export const TETO_BYTES_POR_RESPOSTA = 10 * 1024 * 1024
 
 class ForaDoPrazo extends NonRetryableError {}
 
@@ -109,6 +114,9 @@ type Ganchos = {
 function opcoesDaLoja(opcoes: OpcoesDoCliente, { entregar, parar }: Ganchos): HttpCrawlerOptions {
   const inicios = new Map<string, number>()
   let sessao: Session | undefined
+  // o maxRequestsPerMinute do Crawlee 3.18.2 zera a cada run(), e uma rodada faz várias chamadas
+  const intervaloMs = 60_000 / opcoes.porMinuto
+  let proximoInicio = 0
   function msDesde(chave: string): number {
     return Math.round(performance.now() - (inicios.get(chave) ?? 0))
   }
@@ -117,7 +125,6 @@ function opcoesDaLoja(opcoes: OpcoesDoCliente, { entregar, parar }: Ganchos): Ht
   }
   return {
     maxConcurrency: 1,
-    maxRequestsPerMinute: opcoes.porMinuto,
     maxRequestRetries: opcoes.tentativas,
     navigationTimeoutSecs: opcoes.prazoPedidoMs / 1000,
     // o padrão do HttpCrawler 3.18.2 é aceitar qualquer certificado
@@ -141,19 +148,25 @@ function opcoesDaLoja(opcoes: OpcoesDoCliente, { entregar, parar }: Ganchos): Ht
     },
     preNavigationHooks: [
       async ({ request }) => {
-        if (restanteMs() <= 0) {
+        const folgaMs = Math.max(0, proximoInicio - performance.now())
+        const cabe = folgaMs < restanteMs()
+        if (cabe) await esperar(folgaMs)
+        if (!cabe || restanteMs() <= 0) {
           parar()
           request.noRetry = true
           throw new ForaDoPrazo('prazo final da rodada')
         }
-        inicios.set(request.uniqueKey, performance.now())
+        const inicio = performance.now()
+        proximoInicio = inicio + intervaloMs
+        inicios.set(request.uniqueKey, inicio)
       },
     ],
     postNavigationHooks: [async (contexto) => limitarCorpo(contexto, opcoes.tetoBytes)],
     errorHandler: async ({ response }) => {
-      const espera = esperaPedidaMs(response?.headers['retry-after'], opcoes.esperaMaximaMs)
-      const dormir = Math.min(espera ?? 0, restanteMs())
-      if (dormir > 0) await new Promise((fim) => setTimeout(fim, dormir))
+      const espera = esperaPedidaMs(response?.headers['retry-after'], opcoes.esperaMaximaMs) ?? 0
+      // a repetição que não cabe no prazo fica sem resposta, para a próxima entrega
+      if (espera >= restanteMs()) parar()
+      else await esperar(espera)
     },
     requestHandler: async ({ request, response, body }) => {
       const status = response.statusCode ?? 0
@@ -176,7 +189,7 @@ function opcoesDaLoja(opcoes: OpcoesDoCliente, { entregar, parar }: Ganchos): Ht
 
 function configuracao(): Configuration {
   return new Configuration({
-    // fila e sessão só em memória: a função não tem disco, e cada cliente fica isolado
+    // fila e sessão só em memória: nada vai para o disco, e cada cliente fica isolado
     persistStorage: false,
     // sem o teto declarado o Crawlee roda `ps` ao começar, e onde não há `ps` nada é buscado
     memoryMbytes: Math.floor(totalmem() / 1024 / 1024),
@@ -199,9 +212,6 @@ export function clienteCrawlee(opcoes: OpcoesDoCliente): ClienteHttp {
       if (entrega) throw new Error('este cliente já está numa chamada')
       const atual = criarEntrega(aoResponder, (): void => crawler.stop())
       entrega = atual
-      // sem o alarme, a espera do limite por minuto poderia passar do prazo antes de parar
-      const restanteMs = Math.max(0, opcoes.prazoFinal.getTime() - Date.now())
-      const alarme = setTimeout(() => crawler.stop(), restanteMs)
       try {
         await crawler.run(
           pedidos.map((pedido, indice) => ({
@@ -214,7 +224,6 @@ export function clienteCrawlee(opcoes: OpcoesDoCliente): ClienteHttp {
           })),
         )
       } finally {
-        clearTimeout(alarme)
         entrega = undefined
       }
       atual.conferir()

@@ -1,17 +1,9 @@
-/**
- * Grava as respostas de uma loja para os testes, com os valores trocados por inventados.
- *
- *   node scripts/gravar.ts <plataforma> '<config>' <ean> <ean> [--cru <pasta>] [--destino <pasta>]
- *
- * Faz um pedido por caso, com pausa. Com --cru, a resposta original de cada caso é guardada
- * nessa pasta (fora do repositório) e reusada na próxima execução, sem novo pedido.
- */
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { isAbsolute, join, relative, resolve } from 'node:path'
 import { setTimeout as esperar } from 'node:timers/promises'
 import { parseArgs } from 'node:util'
 import { z } from 'zod'
-import { clienteCrawlee } from '../src/coleta/http.ts'
+import { clienteCrawlee, TETO_BYTES_POR_RESPOSTA } from '../src/coleta/http.ts'
 import type { Plataforma } from '../src/dominio/fonte.ts'
 import { PLATAFORMAS } from '../src/dominio/fonte.ts'
 import { Ean } from '../src/dominio/marcas.ts'
@@ -58,7 +50,7 @@ const cliente = clienteCrawlee({
   tentativas: 0,
   prazoPedidoMs: 25_000,
   esperaMaximaMs: 0,
-  tetoBytes: 10 * 1024 * 1024,
+  tetoBytes: TETO_BYTES_POR_RESPOSTA,
   prazoFinal: new Date(Date.now() + 5 * 60_000),
 })
 let pedidosFeitos = 0
