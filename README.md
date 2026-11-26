@@ -1,16 +1,26 @@
 # conexus-pricing
 
-Coleta os preços que a Telha Norte, a Condec e a ABC cobram pelos produtos do catálogo da empresa e
-os entrega a agentes por MCP. Roda no Neon: Postgres, uma Function que coleta cada loja toda semana
-e uma Function que serve o MCP.
+Coleta os preços que os concorrentes cobram pelos produtos do catálogo da empresa e os entrega a
+agentes por MCP. Roda no Neon: Postgres, uma Function que coleta cada loja toda semana e uma Function
+que serve o MCP.
 
 ## Estado
 
 Etapa E3. A carga do catálogo lê o Sankhya e grava os produtos. A Function de coleta roda a rodada de
-uma loja quando o gatilho do Neon a chama: pergunta cada produto do catálogo à Telha Norte (VTEX), à
-Condec (Tray) ou à ABC (Wake) e grava o que ela respondeu. As migrações criam o schema `precos`, as
-duas roles e as três lojas. A Function de MCP por enquanto só responde que está de pé. As ferramentas
-MCP (E4) e a agenda (E5) ainda não existem aqui.
+uma loja quando o gatilho do Neon a chama: pergunta a ela cada produto do catálogo e grava o que ela
+respondeu. As migrações criam o schema `precos`, as duas roles e as lojas abaixo. A Function de MCP
+por enquanto só responde que está de pé. As ferramentas MCP (E4) e a agenda (E5) ainda não existem
+aqui.
+
+| Código | Loja | Plataforma |
+| --- | --- | --- |
+| `telhanorte` | Telha Norte | VTEX |
+| `condec` | Condec | Tray |
+| `abc` | ABC da Construção | Wake |
+| `balaroti` | Balaroti | Wake |
+| `copafer` | Copafer | VTEX |
+| `queroquero` | Quero-Quero | VTEX |
+| `amoedo` | Amoedo | VTEX |
 
 | Etapa | Entrega |
 | --- | --- |
@@ -100,8 +110,9 @@ A publicação não roda no CI. Cada uma é feita à mão, com a autorização d
 6. Se quiser, grave o token reserva da ABC. É o valor que o site da loja envia no cabeçalho
    `TCS-Access-Token`, visível nas requisições do navegador. A coleta lê o token da home da loja a cada
    rodada e só usa o reserva quando não o acha, com o aviso `TOKEN_RESERVA_EM_USO`. Sem token na home e
-   sem reserva, a rodada da ABC fecha como `FALHOU`, com o aviso `PREPARO_FALHOU` e o motivo. Rode como
-   dono do banco, no editor SQL do Neon:
+   sem reserva, a rodada da ABC fecha como `FALHOU`, com o aviso `PREPARO_FALHOU` e o motivo. A
+   Balaroti também é Wake e segue as mesmas regras, com o token e o código dela. Rode como dono do
+   banco, no editor SQL do Neon:
 
    ```sql
    UPDATE precos.fonte
@@ -168,8 +179,8 @@ recorte entre uma carga e outra continua na tabela.
 
 ## Rodar uma loja à mão
 
-Cada loja tem uma rota na Function de coleta: `POST /telhanorte`, `POST /condec` e `POST /abc`. Só o
-gatilho do Neon consegue chamá-la, porque o Neon apaga os cabeçalhos `X-Neon-*` de quem chama de fora.
+Cada loja tem uma rota na Function de coleta, `POST /<código>`. Só o gatilho do Neon consegue
+chamá-la, porque o Neon apaga os cabeçalhos `X-Neon-*` de quem chama de fora.
 Um `curl` recebe 401. Para rodar uma loja agora, crie um gatilho com um horário alguns minutos à
 frente, em UTC (minuto, hora, dia e mês fixos), e apague-o depois que ele disparar:
 
@@ -184,11 +195,28 @@ A rodada fica em `precos.rodada`, com a situação, as contagens por situação 
 mesmo horário outra vez não a duplica. Uma rodada para de pedir à loja aos 13 minutos. O que não coube
 fica para a entrega seguinte, que o Neon faz sozinho depois da resposta 503.
 
+## Ensaiar um lote numa loja
+
+Antes de contar com uma loja, pergunte a ela um lote de EANs do catálogo, sem banco e sem Neon:
+
+```sh
+node scripts/lote-loja.ts <código> <arquivo>
+```
+
+O arquivo tem um EAN por linha e fica fora do repositório. O script lê a config da loja nas migrações,
+sem o `tokenReserva` que só existe no banco, pergunta com as regras da rodada e faz uma pausa de 2 a
+4 segundos entre os pedidos. A saída são só as contagens por situação (`OK`, `SEM_ESTOQUE`,
+`SEM_PRECO`, `NAO_ENCONTRADO`, `ERRO`) e o tempo. `SEM_RESPOSTA` aparece quando o prazo de 13 minutos
+acaba antes do último EAN.
+
+As contagens não mostram os preços. Uma loja que publica preço de preenchimento aparece como `OK`.
+
 ## Gravar as respostas de uma loja
 
 Os testes respondem no lugar das lojas com respostas gravadas em `src/plataformas/<plataforma>/gravacoes/`,
-com preços, nomes, endereços, EANs e token trocados por inventados. Para gravar de novo, com dois EANs
-que a loja vende:
+com preços, nomes, endereços, EANs e token trocados por inventados. Telha Norte, Condec e ABC ficam na
+própria pasta; cada outra loja, numa subpasta com o código dela, escolhida com `--destino`. Para gravar
+de novo, com dois EANs que a loja vende:
 
 ```sh
 node scripts/gravar.ts vtex '{"origem":"https://www.telhanorte.com.br","lote":50}' <ean> <ean>

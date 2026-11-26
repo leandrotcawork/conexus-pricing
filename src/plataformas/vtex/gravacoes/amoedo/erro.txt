@@ -1,0 +1,5 @@
+www.amoedo.com.br · GET /api/catalog_system/pub/products/search?fq=alternateIds_Ean:2000000000011&_from=0&_to=100 · 2026-11-26
+HTTP 400
+content-type: application/json; charset=utf-8
+
+"texto inventado"

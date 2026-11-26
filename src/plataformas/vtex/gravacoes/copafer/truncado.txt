@@ -1,0 +1,187 @@
+www.copafer.com.br · GET /api/catalog_system/pub/products/search?_from=0&_to=9&O=OrderByTopSaleDESC · 2026-11-26
+HTTP 206
+content-type: application/json; charset=utf-8
+resources: 0-9/31141
+
+[
+  {
+    "link": "https://www.copafer.com.br/produto-inventado-1/p",
+    "items": [
+      {
+        "ean": "2000000000013",
+        "sellers": [
+          {
+            "sellerName": "Vendedor inventado",
+            "commertialOffer": {
+              "Price": 10.9,
+              "ListPrice": 40.9,
+              "IsAvailable": true
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "link": "https://www.copafer.com.br/produto-inventado-2/p",
+    "items": [
+      {
+        "ean": "2000000000011",
+        "sellers": [
+          {
+            "sellerName": "Vendedor inventado",
+            "commertialOffer": {
+              "Price": 100.9,
+              "ListPrice": 110.9,
+              "IsAvailable": true
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "link": "https://www.copafer.com.br/produto-inventado-3/p",
+    "items": [
+      {
+        "ean": "2000000000014",
+        "sellers": [
+          {
+            "sellerName": "Vendedor inventado",
+            "commertialOffer": {
+              "Price": 160.9,
+              "ListPrice": 170.9,
+              "IsAvailable": true
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "link": "https://www.copafer.com.br/produto-inventado-4/p",
+    "items": [
+      {
+        "ean": "2000000000015",
+        "sellers": [
+          {
+            "sellerName": "Vendedor inventado",
+            "commertialOffer": {
+              "Price": 60.9,
+              "ListPrice": 70.9,
+              "IsAvailable": true
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "link": "https://www.copafer.com.br/produto-inventado-5/p",
+    "items": [
+      {
+        "ean": "2000000000016",
+        "sellers": [
+          {
+            "sellerName": "Vendedor inventado",
+            "commertialOffer": {
+              "Price": 30.9,
+              "ListPrice": 30.9,
+              "IsAvailable": true
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "link": "https://www.copafer.com.br/produto-inventado-6/p",
+    "items": [
+      {
+        "ean": "2000000000017",
+        "sellers": [
+          {
+            "sellerName": "Vendedor inventado",
+            "commertialOffer": {
+              "Price": 20.9,
+              "ListPrice": 40.9,
+              "IsAvailable": true
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "link": "https://www.copafer.com.br/produto-inventado-7/p",
+    "items": [
+      {
+        "ean": "2000000000018",
+        "sellers": [
+          {
+            "sellerName": "Vendedor inventado",
+            "commertialOffer": {
+              "Price": 50.9,
+              "ListPrice": 50.9,
+              "IsAvailable": true
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "link": "https://www.copafer.com.br/produto-inventado-8/p",
+    "items": [
+      {
+        "ean": "2000000000012",
+        "sellers": [
+          {
+            "sellerName": "Vendedor inventado",
+            "commertialOffer": {
+              "Price": 120.9,
+              "ListPrice": 130.9,
+              "IsAvailable": true
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "link": "https://www.copafer.com.br/produto-inventado-9/p",
+    "items": [
+      {
+        "ean": "2000000000019",
+        "sellers": [
+          {
+            "sellerName": "Vendedor inventado",
+            "commertialOffer": {
+              "Price": 80.9,
+              "ListPrice": 90.9,
+              "IsAvailable": true
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "link": "https://www.copafer.com.br/produto-inventado-10/p",
+    "items": [
+      {
+        "ean": "2000000000020",
+        "sellers": [
+          {
+            "sellerName": "Vendedor inventado",
+            "commertialOffer": {
+              "Price": 140.9,
+              "ListPrice": 150.9,
+              "IsAvailable": true
+            }
+          }
+        ]
+      }
+    ]
+  }
+]

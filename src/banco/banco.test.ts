@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict'
 import { after, before, describe, test } from 'node:test'
+import { ne } from 'drizzle-orm'
 import { z } from 'zod'
+import { fontesDasMigracoes } from '../../scripts/fontes.ts'
 import { urlDoBancoDeTeste } from '../config.ts'
+import { ADAPTADORES } from '../plataformas/registro.ts'
 import type { Banco } from './conexao.ts'
 import { abrirBanco, fecharBanco } from './conexao.ts'
 import { criarBancoDescartavel } from './descartavel.ts'
@@ -77,10 +80,32 @@ after(async () => {
 
 describe('scripts/migrar.ts', () => {
   test('a primeira execução aplica as migrações e a segunda não aplica nada', async () => {
-    assert.match(primeiraSaida, /^migrações aplicadas: 3 \S+_inicial \S+_roles \S+_fontes$/m)
+    const nomes = /^migrações aplicadas: 4 \S+_inicial \S+_roles \S+_fontes \S+_fontes_novas$/m
+    assert.match(primeiraSaida, nomes)
     assert.match(primeiraSaida, /^senhas definidas: precos_coletor precos_leitor$/m)
     const segundaSaida = await descartavel.migrar()
     assert.match(segundaSaida, /^migrações aplicadas: 0$/m)
+  })
+})
+
+describe('as lojas das migrações', () => {
+  test('são as que o lote de ensaio lê, e cada config abre no seu adaptador', async () => {
+    const { codigo, plataforma, config } = fonte
+    const noBanco = await dono
+      .select({ codigo, plataforma, config })
+      .from(fonte)
+      .where(ne(codigo, 'lojateste'))
+      .orderBy(codigo)
+    const semeadas = fontesDasMigracoes().toSorted((a, b) => a.codigo.localeCompare(b.codigo))
+
+    assert.deepEqual(semeadas, noBanco)
+    assert.deepEqual(
+      noBanco.map((loja) => loja.codigo),
+      ['abc', 'amoedo', 'balaroti', 'condec', 'copafer', 'queroquero', 'telhanorte'],
+    )
+    for (const loja of semeadas) {
+      assert.equal(ADAPTADORES[loja.plataforma].abrir(loja.config).tipo, 'ABERTO', loja.codigo)
+    }
   })
 })
 

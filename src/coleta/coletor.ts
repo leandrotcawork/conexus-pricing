@@ -8,9 +8,9 @@ import { clienteCrawlee, TETO_BYTES_POR_RESPOSTA } from './http.ts'
 
 const VERSAO = 'e3'
 
-function clienteDaRodada(): ClienteHttp {
+export function clienteDaRodada(porMinuto = 60): ClienteHttp {
   return clienteCrawlee({
-    porMinuto: 60,
+    porMinuto,
     tentativas: 1,
     prazoPedidoMs: 25_000, // base.py:21
     esperaMaximaMs: 60_000, // base.py:184-188
@@ -20,7 +20,10 @@ function clienteDaRodada(): ClienteHttp {
   })
 }
 
-export function criarColetor(urlDoBanco: string, criarHttp: () => ClienteHttp = clienteDaRodada) {
+export function criarColetor(
+  urlDoBanco: string,
+  criarHttp: () => ClienteHttp = () => clienteDaRodada(),
+) {
   const banco = abrirBanco(urlDoBanco)
   return {
     /** A coleta só está de pé se entrar com a role que escreve. */

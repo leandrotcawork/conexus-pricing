@@ -1,0 +1,17 @@
+storefront-api.fbits.net · POST /graphql · 2026-11-26
+HTTP 200
+content-type: application/json; charset=utf-8
+
+{
+  "errors": [
+    {
+      "extensions": {
+        "code": "HC0051"
+      },
+      "message": "texto inventado"
+    }
+  ],
+  "data": {
+    "products": null
+  }
+}

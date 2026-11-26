@@ -1,0 +1,135 @@
+storefront-api.fbits.net · POST /graphql · 2026-11-26
+HTTP 200
+content-type: application/json; charset=utf-8
+
+{
+  "data": {
+    "products": {
+      "pageInfo": {
+        "hasNextPage": true
+      },
+      "edges": [
+        {
+          "node": {
+            "ean": "2000000000013",
+            "alias": "produto-inventado-1",
+            "aliasComplete": "produto/produto-inventado-1",
+            "available": true,
+            "prices": {
+              "price": 10.9,
+              "listPrice": 20.9
+            }
+          }
+        },
+        {
+          "node": {
+            "ean": "2000000000014",
+            "alias": "produto-inventado-2",
+            "aliasComplete": "produto/produto-inventado-2",
+            "available": true,
+            "prices": {
+              "price": 170.9,
+              "listPrice": 170.9
+            }
+          }
+        },
+        {
+          "node": {
+            "ean": "2000000000011",
+            "alias": "produto-inventado-3",
+            "aliasComplete": "produto/produto-inventado-3",
+            "available": true,
+            "prices": {
+              "price": 40.9,
+              "listPrice": 30.9
+            }
+          }
+        },
+        {
+          "node": {
+            "ean": "2000000000012",
+            "alias": "produto-inventado-4",
+            "aliasComplete": "produto/produto-inventado-4",
+            "available": true,
+            "prices": {
+              "price": 120.9,
+              "listPrice": 110.9
+            }
+          }
+        },
+        {
+          "node": {
+            "ean": "2000000000015",
+            "alias": "produto-inventado-5",
+            "aliasComplete": "produto/produto-inventado-5",
+            "available": true,
+            "prices": {
+              "price": 140.9,
+              "listPrice": 130.9
+            }
+          }
+        },
+        {
+          "node": {
+            "ean": "2000000000016",
+            "alias": "produto-inventado-6",
+            "aliasComplete": "produto/produto-inventado-6",
+            "available": true,
+            "prices": {
+              "price": 50.9,
+              "listPrice": 50.9
+            }
+          }
+        },
+        {
+          "node": {
+            "ean": "2000000000017",
+            "alias": "produto-inventado-7",
+            "aliasComplete": "produto/produto-inventado-7",
+            "available": true,
+            "prices": {
+              "price": 60.9,
+              "listPrice": 60.9
+            }
+          }
+        },
+        {
+          "node": {
+            "ean": "2000000000018",
+            "alias": "produto-inventado-8",
+            "aliasComplete": "produto/produto-inventado-8",
+            "available": true,
+            "prices": {
+              "price": 80.9,
+              "listPrice": 70.9
+            }
+          }
+        },
+        {
+          "node": {
+            "ean": "2000000000019",
+            "alias": "produto-inventado-9",
+            "aliasComplete": "produto/produto-inventado-9",
+            "available": true,
+            "prices": {
+              "price": 100.9,
+              "listPrice": 90.9
+            }
+          }
+        },
+        {
+          "node": {
+            "ean": "2000000000020",
+            "alias": "produto-inventado-10",
+            "aliasComplete": "produto/produto-inventado-10",
+            "available": true,
+            "prices": {
+              "price": 160.9,
+              "listPrice": 150.9
+            }
+          }
+        }
+      ]
+    }
+  }
+}

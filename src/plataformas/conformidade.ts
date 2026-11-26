@@ -19,6 +19,8 @@ export type Cadastro = {
 
 type Conformidade = {
   readonly adaptador: Adaptador
+  /** O código da loja, quando o adaptador tem gravações de mais de uma. */
+  readonly loja?: string
   readonly gravacoes: URL
   readonly config: object
   readonly camposInvalidos: readonly object[]
@@ -107,11 +109,12 @@ function casosDeLeitura({ gravacoes, comCadastro }: Conformidade, lotes: () => L
 
 export function conformidade(caso: Conformidade): void {
   const { adaptador, config, origens } = caso
+  const nome = [adaptador.plataforma, caso.loja].filter(Boolean).join(' ')
   function abertos() {
     return abrirLotes(adaptador, config, () => gravacaoDe(caso.gravacoes, 'preparo'))
   }
 
-  describe(`conformidade ${adaptador.plataforma}`, () => {
+  describe(`conformidade ${nome}`, () => {
     casosDeLeitura(caso, () => abertos().lotes)
 
     test('nenhum pedido sai das origens da config, e todos vão por HTTPS', () => {

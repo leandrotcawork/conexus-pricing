@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
+import { z } from 'zod'
+import { fonteDasMigracoes } from '../../../scripts/fontes.ts'
 import { decidir } from '../../dominio/observacao.ts'
 import type { Cadastro } from '../conformidade.ts'
 import { abrirLotes, conformidade, EAN_A, EAN_B, gravacaoDe, lido } from '../conformidade.ts'
@@ -26,12 +28,28 @@ function comCadastro(corpo: string, { ean, reais, disponivel }: Cadastro): strin
   return JSON.stringify({ data: { products: { ...products, edges } } })
 }
 
+const CAMPOS_INVALIDOS = [
+  { lote: 26 },
+  { tokenReserva: 'curto' },
+  { api: 'http://exemplo.invalid' },
+]
+
 conformidade({
   adaptador: wake,
   gravacoes: GRAVACOES,
   config: CONFIG,
-  camposInvalidos: [{ lote: 26 }, { tokenReserva: 'curto' }, { api: 'http://exemplo.invalid' }],
+  camposInvalidos: CAMPOS_INVALIDOS,
   origens: [LOJA, new URL(API).origin],
+  comCadastro,
+})
+
+conformidade({
+  adaptador: wake,
+  loja: 'balaroti',
+  gravacoes: new URL('balaroti/', GRAVACOES),
+  config: z.looseObject({}).parse(fonteDasMigracoes('balaroti').config),
+  camposInvalidos: CAMPOS_INVALIDOS,
+  origens: ['https://www.balaroti.com.br', new URL(API).origin],
   comCadastro,
 })
 

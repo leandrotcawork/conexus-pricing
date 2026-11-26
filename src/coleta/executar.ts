@@ -43,7 +43,16 @@ type Pedido = {
   readonly versao: string
 }
 
-type Rodada = Dependencias & { readonly rodadaId: RodadaId }
+type Rodada = { readonly banco: Banco; readonly rodadaId: RodadaId }
+
+/** Como falar com a loja e para onde vai o que cada resposta disse. */
+export type Coleta = {
+  readonly http: ClienteHttp
+  gravar(resultado: {
+    readonly observados: readonly Observado[]
+    readonly avisos: readonly Aviso[]
+  }): Promise<void>
+}
 
 type PorEan = ReadonlyMap<Ean, readonly ProdutoId[]>
 
@@ -88,22 +97,22 @@ type Passada = {
   ) => { readonly observados: readonly Observado[]; readonly avisos: readonly Aviso[] }
 }
 
-async function perguntar(rodada: Rodada, passada: Passada): Promise<void> {
+async function perguntar(coleta: Coleta, passada: Passada): Promise<void> {
   const { lotes, grupos, pedacos, recusado } = passada
   if (pedacos.length === 0) return
-  await rodada.http.buscar(
+  await coleta.http.buscar(
     pedacos.map((eans) => lotes.pedido(eans)),
     async (indice, resultado) => {
       const eans = pedacos[indice] ?? []
       const leitura = interpretar(lotes, resultado, eans)
-      const gravar =
+      const resultadoDoLote =
         leitura.tipo === 'LIDO'
           ? {
               observados: observados(grupos, eans, (ean) => decidir(leitura.ofertas.get(ean))),
               avisos: [],
             }
           : recusado(eans, leitura.motivo)
-      await registrar(rodada.banco, { rodadaId: rodada.rodadaId, ...gravar })
+      await coleta.gravar(resultadoDoLote)
     },
   )
 }
@@ -118,9 +127,9 @@ type Bloco = {
  * Primeiro em lotes. O que um lote recusado não respondeu é perguntado um a um, com aviso
  * (vtex.py:76-84,95-97); o EAN que falha também assim vira ERRO com o motivo.
  */
-async function coletarBloco(rodada: Rodada, { lotes, grupos, eans }: Bloco): Promise<void> {
+async function coletarBloco(coleta: Coleta, { lotes, grupos, eans }: Bloco): Promise<void> {
   const umAUm: Ean[] = []
-  await perguntar(rodada, {
+  await perguntar(coleta, {
     lotes,
     grupos,
     pedacos: emLotes(eans, lotes.maximo),
@@ -130,7 +139,7 @@ async function coletarBloco(rodada: Rodada, { lotes, grupos, eans }: Bloco): Pro
       return { observados: [], avisos: [aviso] }
     },
   })
-  await perguntar(rodada, {
+  await perguntar(coleta, {
     lotes,
     grupos,
     pedacos: emLotes(umAUm, 1),
@@ -147,26 +156,27 @@ async function coletarBloco(rodada: Rodada, { lotes, grupos, eans }: Bloco): Pro
  */
 const EANS_POR_BLOCO = 150
 
-async function coletar(rodada: Rodada, lotes: Lotes): Promise<void> {
-  const grupos = agruparPorEan(await produtosPendentes(rodada.banco, rodada.rodadaId))
+export async function coletar(
+  coleta: Coleta,
+  lotes: Lotes,
+  produtos: readonly ProdutoPendente[],
+): Promise<void> {
+  const grupos = agruparPorEan(produtos)
   for (const eans of emLotes([...grupos.keys()], EANS_POR_BLOCO)) {
-    await coletarBloco(rodada, { lotes, grupos, eans })
+    await coletarBloco(coleta, { lotes, grupos, eans })
   }
 }
 
-async function preparar(rodada: Rodada, plano: PlanoDeColeta): Promise<Preparo | null> {
+/** null quando o prazo acabou antes do pedido de preparo. */
+export async function preparar(coleta: Coleta, plano: PlanoDeColeta): Promise<Preparo | null> {
   if (plano.tipo === 'DIRETO') return { tipo: 'PREPARADO', lotes: plano.lotes, avisos: [] }
   let preparo: Preparo | null = null
-  await rodada.http.buscar([plano.preparo], async (_, resultado) => {
+  await coleta.http.buscar([plano.preparo], async (_, resultado) => {
     const resposta = resultado.tipo === 'RESPONDEU' ? resultado.resposta : null
     const preparado = plano.lerPreparo(resposta)
     preparo = preparado
     if (preparado.tipo === 'PREPARO_FALHOU') return
-    await registrar(rodada.banco, {
-      rodadaId: rodada.rodadaId,
-      observados: [],
-      avisos: preparado.avisos,
-    })
+    await coleta.gravar({ observados: [], avisos: preparado.avisos })
   })
   return preparo
 }
@@ -205,19 +215,25 @@ export async function executarRodada(
   const tomada = await tomarRodada(banco, { fonteId: fonte.id, agendadaPara, versao })
   const { rodadaId } = tomada
   if (tomada.tipo !== 'TOMADA') return { tipo: tomada.tipo, rodadaId }
-  const rodada = { ...dependencias, rodadaId }
+  const rodada = { banco, rodadaId }
+  const coleta: Coleta = {
+    http: dependencias.http,
+    gravar: (resultado) => registrar(banco, { rodadaId, ...resultado }),
+  }
   const aberto = ADAPTADORES[fonte.plataforma].abrir(fonte.config)
   if (aberto.tipo === 'CONFIG_INVALIDA') {
     const { motivo } = aberto
     await falhar(rodada, { tipo: 'CONFIG_INVALIDA', motivo })
     return { tipo: 'CONFIG_INVALIDA', rodadaId, motivo }
   }
-  const preparo = await preparar(rodada, aberto.plano)
+  const preparo = await preparar(coleta, aberto.plano)
   if (preparo?.tipo === 'PREPARO_FALHOU') {
     const { motivo } = preparo
     await falhar(rodada, { tipo: 'PREPARO_FALHOU', motivo })
     return { tipo: 'PREPARO_FALHOU', rodadaId, motivo }
   }
-  if (preparo) await coletar(rodada, preparo.lotes)
+  if (preparo) {
+    await coletar(coleta, preparo.lotes, await produtosPendentes(banco, rodadaId))
+  }
   return await fechar(rodada, fonte, agendadaPara)
 }

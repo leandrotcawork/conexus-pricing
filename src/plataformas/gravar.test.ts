@@ -48,6 +48,12 @@ function comValoresSecretos(corpo: string): string {
     .replace(/\{/, '{"segredo":"campo a mais",')
 }
 
+/** Sem as subpastas, que guardam as gravações de outras lojas da mesma plataforma. */
+function arquivosDe(pasta: URL): string[] {
+  const entradas = readdirSync(pasta, { withFileTypes: true })
+  return entradas.filter((entrada) => entrada.isFile()).map(({ name }) => name)
+}
+
 function semData(gravacao: string): string {
   return gravacao.replace(/^(.*) · \d{4}-\d{2}-\d{2}\n/, '$1\n')
 }
@@ -68,7 +74,7 @@ describe('scripts/gravar.ts', () => {
       const argumentos = [plataforma, JSON.stringify(config), ...EANS_REAIS]
       const opcoes = ['--cru', cru, '--destino', destino]
       mkdirSync(cru)
-      for (const arquivo of readdirSync(gravadas)) {
+      for (const arquivo of arquivosDe(gravadas)) {
         const { corpo, ...resposta } = lerGravacao(readFileSync(new URL(arquivo, gravadas), 'utf8'))
         const original = { ...resposta, corpo: comValoresSecretos(corpo) }
         if (arquivo === 'lote.txt') assert.match(original.corpo, /segredo[\s\S]*secreto/)
@@ -77,7 +83,7 @@ describe('scripts/gravar.ts', () => {
 
       await rodar([...argumentos, ...opcoes])
 
-      assert.deepEqual(readdirSync(destino).sort(), readdirSync(gravadas).sort())
+      assert.deepEqual(readdirSync(destino).sort(), arquivosDe(gravadas).sort())
       for (const arquivo of readdirSync(destino)) {
         const saida = readFileSync(join(destino, arquivo), 'utf8')
         assert.doesNotMatch(saida, /secret|segredo|789000|70\d\d\.\d/, arquivo)

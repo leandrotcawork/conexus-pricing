@@ -1,0 +1,6 @@
+www.balaroti.com.br · GET / · 2026-11-26
+HTTP 200
+content-type: text/html; charset=utf-8
+
+<!doctype html>
+<script>const clientConfig={storefrontAccessToken:"tcs_inventado_00000000000000000000"}</script>
