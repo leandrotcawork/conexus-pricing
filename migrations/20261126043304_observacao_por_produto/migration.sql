@@ -1,0 +1,1 @@
+CREATE INDEX "observacao_produto_idx" ON "precos"."observacao" ("produto_id");

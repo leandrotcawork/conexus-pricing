@@ -1,7 +1,7 @@
 {
-  "id": "134d60ed-5527-4fc9-b26a-9848764a16e8",
+  "id": "55ed7dbd-9435-4217-ad10-923a9bb4051b",
   "prevIds": [
-    "abea5970-0167-4282-8441-2f32704f891d"
+    "2095ae2c-114d-4138-91ec-a0dd023c057e"
   ],
   "version": "8",
   "dialect": "postgres",
@@ -536,6 +536,27 @@
       "entityType": "columns",
       "schema": "precos",
       "table": "rodada"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "produto_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "observacao_produto_idx",
+      "entityType": "indexes",
+      "schema": "precos",
+      "table": "observacao"
     },
     {
       "nameExplicit": false,

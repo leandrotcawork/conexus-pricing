@@ -23,7 +23,7 @@ export type ResultadoRodada =
   | {
       readonly tipo: 'FECHADA'
       readonly rodadaId: RodadaId
-      readonly situacao: 'CONCLUIDA' | 'SUSPEITA'
+      readonly situacao: ReturnType<typeof classificar>['situacao']
       readonly contagens: Contagens
       readonly avisos: readonly Aviso[]
     }
