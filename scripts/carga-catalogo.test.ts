@@ -11,7 +11,7 @@ import { z } from 'zod'
 import type { Banco } from '../src/banco/conexao.ts'
 import { abrirBanco, fecharBanco } from '../src/banco/conexao.ts'
 import { criarBancoDescartavel } from '../src/banco/descartavel.ts'
-import { produto } from '../src/banco/tabelas.ts'
+import { grupo, produto } from '../src/banco/tabelas.ts'
 import { oracleDeTeste, urlDoBancoDeTeste } from '../src/config.ts'
 import { NOMES_DAS_TABELAS, semearSankhya } from './sankhya-de-teste.ts'
 
@@ -137,46 +137,74 @@ sem nosso preço: 5
 classe A: 2 (acumulado 2)
 classe B: 2 (acumulado 4)
 classe C: 4 (acumulado 8)
+grupos de produto: 5
+produtos sem grupo: 1
+produtos em grupo sintético: 2
 linhas em precos.produto: 8
 `
 
+// codprod, grupo, classe, venda líquida de 12 meses em centavos
+const CATEGORIAS = [
+  ['101', 10, 'A', 500_000],
+  ['102', 21, 'A', 300_000],
+  ['103', null, 'B', 100_000],
+  ['104', 20, 'B', 50_000],
+  ['105', 10, 'C', 20_000],
+  ['106', 21, 'C', 15_000],
+  // devolveu mais do que vendeu: zero, e não negativo
+  ['110', 10, 'C', 0],
+  ['111', 1, 'C', 0],
+] as const
+
+// codigo, nome, pai, grau, analítico, ativo
+const ARVORE = [
+  [1, 'Raiz inventada', null, 1, false, true],
+  [2, 'Outra raiz inventada', null, 1, true, true],
+  [10, 'Folha um', 1, 2, true, true],
+  [20, 'Subgrupo', 1, 2, false, true],
+  [21, 'Folha dois', 20, 3, true, false],
+] as const
+
+let sankhya: Awaited<ReturnType<typeof criarSankhyaDescartavel>>
+let descartavel: Awaited<ReturnType<typeof criarBancoDescartavel>>
+let banco: Banco
+
+function carregar() {
+  return rodarCarga({ ...sankhya.env, DATABASE_URL_UNPOOLED: descartavel.urls.dono })
+}
+
+function catalogo() {
+  return banco.select().from(produto).orderBy(asc(produto.codprod))
+}
+
+async function resumido() {
+  const linhas = await catalogo()
+  return linhas.map((l) => [
+    l.codprod,
+    l.ean,
+    l.referenciaFabricante,
+    l.marca,
+    l.nossoPrecoCentavos,
+  ])
+}
+
+async function preparar(): Promise<void> {
+  assert.ok(oracle)
+  sankhya = await criarSankhyaDescartavel(oracle)
+  descartavel = await criarBancoDescartavel(urlDoBancoDeTeste())
+  await descartavel.migrar()
+  banco = abrirBanco(descartavel.urls.dono)
+}
+
+async function apagarTudo(): Promise<void> {
+  await fecharBanco(banco)
+  await descartavel.apagar()
+  await sankhya.apagar()
+}
+
 describe('scripts/carga-catalogo.ts contra o Oracle local', { skip: SEM_ORACLE }, () => {
-  let sankhya: Awaited<ReturnType<typeof criarSankhyaDescartavel>>
-  let descartavel: Awaited<ReturnType<typeof criarBancoDescartavel>>
-  let banco: Banco
-
-  before(async () => {
-    assert.ok(oracle)
-    sankhya = await criarSankhyaDescartavel(oracle)
-    descartavel = await criarBancoDescartavel(urlDoBancoDeTeste())
-    await descartavel.migrar()
-    banco = abrirBanco(descartavel.urls.dono)
-  })
-
-  after(async () => {
-    await fecharBanco(banco)
-    await descartavel.apagar()
-    await sankhya.apagar()
-  })
-
-  function carregar() {
-    return rodarCarga({ ...sankhya.env, DATABASE_URL_UNPOOLED: descartavel.urls.dono })
-  }
-
-  function catalogo() {
-    return banco.select().from(produto).orderBy(asc(produto.codprod))
-  }
-
-  async function resumido() {
-    const linhas = await catalogo()
-    return linhas.map((l) => [
-      l.codprod,
-      l.ean,
-      l.referenciaFabricante,
-      l.marca,
-      l.nossoPrecoCentavos,
-    ])
-  }
+  before(preparar)
+  after(apagarTudo)
 
   test('grava o recorte do gabarito e imprime só as contagens', async () => {
     const { stdout, stderr } = await carregar()
@@ -185,6 +213,19 @@ describe('scripts/carga-catalogo.ts contra o Oracle local', { skip: SEM_ORACLE }
     assert.deepEqual(await resumido(), GABARITO)
     const [primeiro] = await catalogo()
     assert.equal(primeiro?.descricao, 'Item inventado 101')
+  })
+
+  test('grava a árvore de grupos e, no produto, o grupo, a classe e a venda', async () => {
+    const arvore = await banco.select().from(grupo).orderBy(asc(grupo.codigo))
+    assert.deepEqual(
+      arvore.map((g) => [g.codigo, g.nome, g.pai, g.grau, g.analitico, g.ativo]),
+      ARVORE,
+    )
+    const linhas = await catalogo()
+    assert.deepEqual(
+      linhas.map((l) => [l.codprod, l.grupoCodigo, l.classe, l.venda12mCentavos]),
+      CATEGORIAS,
+    )
   })
 
   test('rodar de novo não cria linha nova', async () => {
@@ -205,6 +246,20 @@ describe('scripts/carga-catalogo.ts contra o Oracle local', { skip: SEM_ORACLE }
     await assert.rejects(carregar(), /operação sem descrição no TGFTOP/)
     assert.deepEqual(await resumido(), GABARITO)
     await sankhya.mudar('DELETE FROM TGFCAB WHERE NUNOTA = 900')
+  })
+
+  test('um grupo que não existe recusa a carga com as contagens, sem gravar nada', async () => {
+    const antes = await catalogo()
+    await sankhya.mudar('UPDATE TGFGRU SET CODGRUPAI = 998 WHERE CODGRUPOPROD = 21')
+    await sankhya.mudar('UPDATE TGFPRO SET CODGRUPOPROD = 999 WHERE CODPROD IN (105, 106)')
+    await assert.rejects(
+      carregar(),
+      /nada foi gravado: grupos com um pai que não existe no TGFGRU: 1; produtos do recorte num grupo que não existe: 2/,
+    )
+    assert.deepEqual(await catalogo(), antes)
+    await sankhya.mudar('UPDATE TGFGRU SET CODGRUPAI = 20 WHERE CODGRUPOPROD = 21')
+    await sankhya.mudar('UPDATE TGFPRO SET CODGRUPOPROD = 10 WHERE CODPROD = 105')
+    await sankhya.mudar('UPDATE TGFPRO SET CODGRUPOPROD = 21 WHERE CODPROD = 106')
   })
 
   test('a carga seguinte traz o preço que mudou no Sankhya', async () => {

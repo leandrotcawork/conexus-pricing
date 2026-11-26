@@ -16,7 +16,7 @@ copia o texto: cite o identificador, nunca reescreva a regra.
 | code C27 | Toda resposta de loja, o envelope do cron, `fonte.config`, as linhas lidas do Oracle e o `process.env` passam por Zod uma vez |
 | code C30 | Ferramentas MCP estreitas; nada de `executar_sql` |
 | code C40 | Instantes em RFC 3339 UTC na saída MCP |
-| code C44 | `buscar_produto` paginado por continuação do servidor |
+| code C44 | `buscar_produtos` e `panorama_precos` paginados por continuação do servidor |
 | code C50, C53 | Nenhum `catch` vazio; falha de lote vira observação `ERRO` com detalhe e aviso na rodada |
 | code C56 | Uma porta por sistema externo; só o adaptador HTTP importa o Crawlee |
 | code C57, C59 | Prazo por pedido (25 s, `base.py:21`), prazo da rodada (13 min de 15), teto de bytes por resposta |

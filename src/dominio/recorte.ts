@@ -14,9 +14,15 @@ export type Movimento = {
   readonly centavos: number
 }
 
-type Classe = 'A' | 'B' | 'C'
+export const CLASSES = ['A', 'B', 'C'] as const
+type Classe = (typeof CLASSES)[number]
 
-export type ItemDoRecorte = { readonly produto: ProdutoDoCatalogo; readonly classe: Classe }
+export type ItemDoRecorte = {
+  readonly produto: ProdutoDoCatalogo
+  readonly classe: Classe
+  /** A venda líquida de 12 meses em centavos, a que ordena a curva: nunca abaixo de zero. */
+  readonly venda12m: number
+}
 
 // o tipo de movimento não basta: nota de venda e de compra também registram transferência,
 // consignação, serviço e despesa, que só a descrição da operação distingue
@@ -109,6 +115,6 @@ export function recorteR3(
     const classe = classeDe(antes, total)
     antes += valor
     const entra = classe !== 'C' || comprados.has(produto.codprod)
-    return entra ? [{ produto, classe }] : []
+    return entra ? [{ produto, classe, venda12m: valor }] : []
   })
 }

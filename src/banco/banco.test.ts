@@ -8,7 +8,7 @@ import { ADAPTADORES } from '../plataformas/registro.ts'
 import type { Banco } from './conexao.ts'
 import { abrirBanco, fecharBanco } from './conexao.ts'
 import { criarBancoDescartavel } from './descartavel.ts'
-import { fonte, observacao, produto, rodada } from './tabelas.ts'
+import { fonte, grupo, observacao, produto, rodada } from './tabelas.ts'
 
 const Recusa = z.object({
   cause: z.object({ code: z.string(), constraint: z.string().optional() }),
@@ -82,7 +82,7 @@ describe('scripts/migrar.ts', () => {
   test('a primeira execução aplica as migrações e a segunda não aplica nada', async () => {
     assert.match(
       primeiraSaida,
-      /^migrações aplicadas: 5 \S+_inicial \S+_roles \S+_fontes \S+_observacao_por_produto \S+_fontes_novas$/m,
+      /^migrações aplicadas: 6 \S+_inicial \S+_roles \S+_fontes \S+_observacao_por_produto \S+_fontes_novas \S+_categoria$/m,
     )
     assert.match(primeiraSaida, /^senhas definidas: precos_coletor precos_leitor$/m)
     const segundaSaida = await descartavel.migrar()
@@ -113,7 +113,7 @@ describe('as lojas das migrações', () => {
 
 describe('roles', () => {
   test('precos_leitor lê as tabelas e recebe 42501 num INSERT', async () => {
-    for (const tabela of [produto, fonte, rodada, observacao]) {
+    for (const tabela of [grupo, produto, fonte, rodada, observacao]) {
       await leitor.select().from(tabela)
     }
     const insercao = leitor

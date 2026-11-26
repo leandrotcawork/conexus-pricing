@@ -1,188 +1,148 @@
-import type { SQLWrapper } from 'drizzle-orm'
-import { and, asc, desc, eq, gt, gte, inArray, sql } from 'drizzle-orm'
+/** As consultas das ferramentas MCP. O SQL só traz linhas; quem calcula é o domínio. */
+import { and, asc, desc, eq, inArray } from 'drizzle-orm'
 import { z } from 'zod'
-import { SITUACAO_DAS_ESTATISTICAS } from '../dominio/estatisticas.ts'
-import { Centavos, Codprod, Ean, FonteCodigo, ProdutoId, RodadaId } from '../dominio/marcas.ts'
+import type { Cotacao } from '../dominio/indicadores.ts'
+import { Centavos, FonteCodigo, ProdutoId, RodadaId } from '../dominio/marcas.ts'
 import { SITUACOES_OBSERVACAO } from '../dominio/observacao.ts'
 import type { Banco } from './conexao.ts'
 import { abrirBanco } from './conexao.ts'
+import type { Pagina, ProdutoRef } from './leituras-do-catalogo.ts'
+import { buscarProdutos, contarPorGrupo, gruposDe, produtosDe } from './leituras-do-catalogo.ts'
 import { contar } from './rodadas.ts'
 import { fonte, observacao, produto, rodada } from './tabelas.ts'
+
+export type { ProdutoLido, ProdutoRef } from './leituras-do-catalogo.ts'
 
 /** Só a rodada que fechou valendo dá preço; as outras aparecem na saúde da coleta. */
 const COM_PRECOS = ['CONCLUIDA', 'SUSPEITA'] as const
 
-const LinhaDoProduto = z.object({
-  id: ProdutoId,
-  codprod: Codprod,
-  ean: Ean,
-  referenciaFabricante: z.string().nullable(),
-  descricao: z.string(),
-  marca: z.string().nullable(),
-  nossoPreco: Centavos.nullable(),
-})
+const LinhaDaLoja = z.object({ loja: FonteCodigo, nome: z.string() })
 
-const COLUNAS_DO_PRODUTO = {
-  id: produto.id,
-  codprod: produto.codprod,
-  ean: produto.ean,
-  referenciaFabricante: produto.referenciaFabricante,
-  descricao: produto.descricao,
-  marca: produto.marca,
-  nossoPreco: produto.nossoPrecoCentavos,
-}
-
-export type Busca = {
-  readonly texto?: string | undefined
-  readonly ean?: Ean | undefined
-  readonly codprod?: Codprod | undefined
-  readonly marca?: string | undefined
-}
-
-export type ProdutoRef = { readonly codprod: Codprod } | { readonly ean: Ean }
-
-const COM_ACENTO = 'áàâãäéèêëíìîïóòôõöúùûüçñ'
-const SEM_ACENTO = 'aaaaaeeeeiiiiooooouuuucn'
-
-function semCaixaNemAcento(valor: SQLWrapper) {
-  return sql`translate(lower(${valor}), ${COM_ACENTO}, ${SEM_ACENTO})`
-}
-
-// strpos e não LIKE: `%` e `_` do pedido valem como texto
-function contem(coluna: SQLWrapper, trecho: string) {
-  const procurado = semCaixaNemAcento(sql`${trecho}::text`)
-  return sql`strpos(${semCaixaNemAcento(coluna)}, ${procurado}) > 0`
-}
-
-function filtros({ texto, ean, codprod, marca }: Busca) {
-  const palavras = texto?.split(/\s+/) ?? []
-  return [
-    ...palavras.map((palavra) => contem(produto.descricao, palavra)),
-    marca === undefined ? undefined : contem(produto.marca, marca),
-    ean === undefined ? undefined : eq(produto.ean, ean),
-    codprod === undefined ? undefined : eq(produto.codprod, codprod),
-  ]
-}
-
-/** Em ordem de id, que nunca muda: a página seguinte começa depois do último id visto. */
-async function buscarProdutos(
-  banco: Banco,
-  pagina: { readonly busca: Busca; readonly depoisDe: number; readonly limite: number },
-) {
+async function lojasAtivasDe(banco: Banco) {
   const linhas = await banco
-    .select(COLUNAS_DO_PRODUTO)
-    .from(produto)
-    .where(and(gt(produto.id, pagina.depoisDe), ...filtros(pagina.busca)))
-    .orderBy(asc(produto.id))
-    .limit(pagina.limite)
-  return z.array(LinhaDoProduto).parse(linhas)
+    .select({ loja: fonte.codigo, nome: fonte.nome })
+    .from(fonte)
+    .where(eq(fonte.ativa, true))
+    .orderBy(asc(fonte.codigo))
+  return z.array(LinhaDaLoja).parse(linhas)
 }
 
-/** Um EAN pode estar em mais de um produto do catálogo. */
-async function produtosDe(banco: Banco, ref: ProdutoRef) {
-  const linhas = await banco
-    .select(COLUNAS_DO_PRODUTO)
-    .from(produto)
-    .where('codprod' in ref ? eq(produto.codprod, ref.codprod) : eq(produto.ean, ref.ean))
-    .orderBy(asc(produto.id))
-  return z.array(LinhaDoProduto).parse(linhas)
-}
-
-const LinhaAtual = z.object({
+const LinhaDaRodada = z.object({
+  id: RodadaId,
   loja: FonteCodigo,
-  nome: z.string(),
-  atual: z
-    .object({
-      situacao: z.enum(SITUACOES_OBSERVACAO),
-      preco: Centavos.nullable(),
-      precoLista: Centavos.nullable(),
-      vendedor: z.string().nullable(),
-      url: z.string().nullable(),
-      detalhe: z.string().nullable(),
-      coletadoEm: z.date(),
-      agendadaPara: z.date(),
-      rodada: z.enum(COM_PRECOS),
-    })
-    .nullable(),
+  agendadaPara: z.date(),
+  situacao: z.enum(COM_PRECOS),
 })
 
-export type LojaAtual = z.infer<typeof LinhaAtual>
+export type RodadaComPrecos = z.infer<typeof LinhaDaRodada>
 
-/**
- * Por loja ativa, o que a última rodada com preços observou do produto. `atual` é null quando a
- * loja não tem essa rodada, ou o produto entrou no catálogo depois dela.
- */
-async function precosAtuaisDe(banco: Banco, produtoId: ProdutoId) {
-  const ultima = banco
-    .selectDistinctOn([rodada.fonteId], {
+async function rodadasComPrecosDe(banco: Banco) {
+  const linhas = await banco
+    .select({
       id: rodada.id,
-      fonteId: rodada.fonteId,
+      loja: fonte.codigo,
       agendadaPara: rodada.agendadaPara,
       situacao: rodada.situacao,
     })
     .from(rodada)
-    .where(inArray(rodada.situacao, COM_PRECOS))
-    .orderBy(rodada.fonteId, desc(rodada.agendadaPara))
-    .as('ultima')
-  const linhas = await banco
-    .select({
-      loja: fonte.codigo,
-      nome: fonte.nome,
-      observada: {
-        situacao: observacao.situacao,
-        preco: observacao.precoCentavos,
-        precoLista: observacao.precoListaCentavos,
-        vendedor: observacao.vendedor,
-        url: observacao.url,
-        detalhe: observacao.detalhe,
-        coletadoEm: observacao.coletadoEm,
-      },
-      agendadaPara: ultima.agendadaPara,
-      rodada: ultima.situacao,
-    })
-    .from(fonte)
-    .leftJoin(ultima, eq(ultima.fonteId, fonte.id))
-    .leftJoin(
-      observacao,
-      and(eq(observacao.rodadaId, ultima.id), eq(observacao.produtoId, produtoId)),
-    )
-    .where(eq(fonte.ativa, true))
-    .orderBy(asc(fonte.codigo))
-  return z.array(LinhaAtual).parse(
-    linhas.map(({ loja, nome, observada, ...daRodada }) => ({
-      loja,
-      nome,
-      atual: observada && { ...observada, ...daRodada },
-    })),
+    .innerJoin(fonte, eq(fonte.id, rodada.fonteId))
+    .where(and(eq(fonte.ativa, true), inArray(rodada.situacao, COM_PRECOS)))
+  return z.array(LinhaDaRodada).parse(linhas)
+}
+
+export type Recorte = {
+  readonly rodadas: readonly RodadaId[]
+  /** Sem a lista, o catálogo inteiro. */
+  readonly produtos?: readonly ProdutoId[] | undefined
+}
+
+function doRecorte({ rodadas, produtos }: Recorte) {
+  return and(
+    inArray(observacao.rodadaId, [...rodadas]),
+    produtos && inArray(observacao.produtoId, [...produtos]),
   )
 }
 
-const LinhaDoHistorico = z.object({ loja: FonteCodigo, preco: Centavos, coletadoEm: z.date() })
+const DaObservacao = { rodadaId: RodadaId, produtoId: ProdutoId }
 
-/** Os preços das rodadas com preços desde `desde`, os mais novos primeiro. */
-async function historicoDe(
+// só o OK carrega preço: um sem estoque publica preço, e ele não entra em indicador
+const LinhaDaCotacao = z.discriminatedUnion('situacao', [
+  z.object({
+    ...DaObservacao,
+    situacao: z.literal('OK'),
+    preco: Centavos,
+    precoLista: Centavos.nullable(),
+  }),
+  z.object({ ...DaObservacao, situacao: z.enum(SITUACOES_OBSERVACAO).exclude(['OK']) }),
+])
+
+async function cotacoesDe(
   banco: Banco,
-  pedido: { readonly produtoId: ProdutoId; readonly desde: Date },
+  recorte: Recorte & { readonly lojas: ReadonlyMap<RodadaId, FonteCodigo> },
 ) {
   const linhas = await banco
     .select({
-      loja: fonte.codigo,
+      rodadaId: observacao.rodadaId,
+      produtoId: observacao.produtoId,
+      situacao: observacao.situacao,
       preco: observacao.precoCentavos,
+      precoLista: observacao.precoListaCentavos,
+    })
+    .from(observacao)
+    .where(doRecorte(recorte))
+  return z
+    .array(LinhaDaCotacao)
+    .parse(linhas)
+    .flatMap(({ rodadaId, produtoId, ...dita }) => {
+      const loja = recorte.lojas.get(rodadaId)
+      const cotacao: Cotacao | undefined = loja && { loja, ...dita }
+      return cotacao ? [{ rodadaId, produtoId, cotacao }] : []
+    })
+}
+
+const LinhaDaObservacao = z.object({
+  ...DaObservacao,
+  situacao: z.enum(SITUACOES_OBSERVACAO),
+  preco: Centavos.nullable(),
+  precoLista: Centavos.nullable(),
+  vendedor: z.string().nullable(),
+  url: z.string().nullable(),
+  detalhe: z.string().nullable(),
+  coletadoEm: z.date(),
+})
+
+async function observacoesDe(banco: Banco, recorte: Recorte) {
+  const linhas = await banco
+    .select({
+      rodadaId: observacao.rodadaId,
+      produtoId: observacao.produtoId,
+      situacao: observacao.situacao,
+      preco: observacao.precoCentavos,
+      precoLista: observacao.precoListaCentavos,
+      vendedor: observacao.vendedor,
+      url: observacao.url,
+      detalhe: observacao.detalhe,
       coletadoEm: observacao.coletadoEm,
     })
     .from(observacao)
-    .innerJoin(rodada, eq(rodada.id, observacao.rodadaId))
+    .where(doRecorte(recorte))
+  return z.array(LinhaDaObservacao).parse(linhas)
+}
+
+async function okPorLoja(banco: Banco): Promise<ReadonlyMap<FonteCodigo, number>> {
+  const linhas = await banco
+    .selectDistinctOn([rodada.fonteId], { id: rodada.id, loja: fonte.codigo })
+    .from(rodada)
     .innerJoin(fonte, eq(fonte.id, rodada.fonteId))
-    .where(
-      and(
-        eq(observacao.produtoId, pedido.produtoId),
-        eq(observacao.situacao, SITUACAO_DAS_ESTATISTICAS),
-        inArray(rodada.situacao, COM_PRECOS),
-        gte(observacao.coletadoEm, pedido.desde),
-      ),
-    )
-    .orderBy(desc(rodada.agendadaPara))
-  return z.array(LinhaDoHistorico).parse(linhas)
+    .where(inArray(rodada.situacao, COM_PRECOS))
+    .orderBy(rodada.fonteId, desc(rodada.agendadaPara))
+  const contadas = await Promise.all(
+    linhas.map(async ({ id, loja }) => {
+      const { OK } = await contar(banco, RodadaId.parse(id))
+      return [FonteCodigo.parse(loja), OK] as const
+    }),
+  )
+  return new Map(contadas)
 }
 
 /** Cada loja, ativa ou não, com a rodada de agendamento mais novo em qualquer situação. */
@@ -210,9 +170,11 @@ async function ultimasRodadasDe(banco: Banco, loja: FonteCodigo | undefined) {
     .leftJoin(ultima, eq(ultima.fonteId, fonte.id))
     .where(loja === undefined ? undefined : eq(fonte.codigo, loja))
     .orderBy(asc(fonte.codigo))
+  const [catalogo, ok] = await Promise.all([banco.$count(produto), okPorLoja(banco)])
   return await Promise.all(
     linhas.map(async ({ rodada: lida, ...daLoja }) => ({
       ...daLoja,
+      cobertura: { catalogo, ok: ok.get(FonteCodigo.parse(daLoja.loja)) ?? 0 },
       // contadas agora, e não as gravadas no fechamento: a rodada em andamento ainda não as tem
       rodada: lida && { ...lida, contagens: await contar(banco, RodadaId.parse(lida.id)) },
     })),
@@ -223,10 +185,14 @@ async function ultimasRodadasDe(banco: Banco, loja: FonteCodigo | undefined) {
 export function abrirLeituras(urlDoBanco: string) {
   const banco = abrirBanco(urlDoBanco)
   return {
-    buscar: (pagina: Parameters<typeof buscarProdutos>[1]) => buscarProdutos(banco, pagina),
-    produtos: (ref: ProdutoRef) => produtosDe(banco, ref),
-    precosAtuais: (produtoId: ProdutoId) => precosAtuaisDe(banco, produtoId),
-    historico: (pedido: Parameters<typeof historicoDe>[1]) => historicoDe(banco, pedido),
+    buscar: (pagina: Pagina) => buscarProdutos(banco, pagina),
+    produtos: (refs: readonly ProdutoRef[]) => produtosDe(banco, refs),
+    grupos: () => gruposDe(banco),
+    contarPorGrupo: (rodadas: readonly RodadaId[]) => contarPorGrupo(banco, rodadas),
+    lojasAtivas: () => lojasAtivasDe(banco),
+    rodadasComPrecos: () => rodadasComPrecosDe(banco),
+    cotacoes: (recorte: Parameters<typeof cotacoesDe>[1]) => cotacoesDe(banco, recorte),
+    observacoes: (recorte: Recorte) => observacoesDe(banco, recorte),
     ultimasRodadas: (loja: FonteCodigo | undefined) => ultimasRodadasDe(banco, loja),
   }
 }

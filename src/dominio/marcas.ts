@@ -21,6 +21,9 @@ export const RodadaId = z.number().int().positive().brand<'RodadaId'>()
 export type RodadaId = z.infer<typeof RodadaId>
 export const FonteId = z.number().int().positive().brand<'FonteId'>()
 export type FonteId = z.infer<typeof FonteId>
+/** O CODGRUPOPROD do Sankhya, que é também a chave do grupo aqui. */
+export const CodGrupo = z.number().int().brand<'CodGrupo'>()
+export type CodGrupo = z.infer<typeof CodGrupo>
 
 /** Dinheiro exato em centavos (data D15). A loja manda reais em ponto flutuante. */
 export const Centavos = z.number().int().positive().brand<'Centavos'>()

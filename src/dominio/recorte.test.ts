@@ -11,6 +11,7 @@ function produto(codigo: number): ProdutoDoCatalogo {
     referenciaFabricante: null,
     descricao: `Item ${codigo}`,
     marca: null,
+    grupo: null,
     nossoPreco: null,
   }
 }
@@ -72,6 +73,24 @@ describe('a curva ABC', () => {
     const devolvidos = [movimento(3, 'DEVOLUCAO', 9000), movimento(5, 'DEVOLUCAO', 100)]
     const movimentos = [...vendas, ...devolvidos, compra(3), compra(4)]
     assert.deepEqual(classes(6, movimentos), ['1:A', '2:B', '3:C', '4:C'])
+  })
+
+  test('cada item leva a venda líquida de 12 meses que o ordenou, nunca abaixo de zero', () => {
+    const movimentos = [
+      venda(1, 500),
+      venda(1, 600),
+      movimento(1, 'DEVOLUCAO', 100),
+      movimento(2, 'DEVOLUCAO', 900),
+      compra(2),
+    ]
+    const itens = recorteR3([produto(1), produto(2)], movimentos)
+    assert.deepEqual(
+      itens.map(({ produto, venda12m }) => [produto.codprod, venda12m]),
+      [
+        ['1', 1000],
+        ['2', 0],
+      ],
+    )
   })
 
   test('um movimento de produto fora do universo não pesa na curva', () => {

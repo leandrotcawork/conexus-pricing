@@ -1,11 +1,10 @@
+import { createHash } from 'node:crypto'
 import { z } from 'zod'
-import type { Busca } from '../banco/leituras.ts'
-import { ProdutoId } from '../dominio/marcas.ts'
 
-const Marcador = z.tuple([ProdutoId, z.string()])
+const Marcador = z.tuple([z.number().int().nonnegative(), z.string()])
 
-function assinatura({ texto, ean, codprod, marca }: Busca): string {
-  return JSON.stringify([texto, ean, codprod, marca])
+function assinatura(pedido: unknown): string {
+  return createHash('sha256').update(JSON.stringify(pedido)).digest('base64url')
 }
 
 function comoJson(texto: string): unknown {
@@ -16,15 +15,15 @@ function comoJson(texto: string): unknown {
   }
 }
 
-// a continuação leva a busca junto: usada noutra busca, pularia produtos sem avisar
-export function continuacaoDe(busca: Busca, ultimo: ProdutoId): string {
-  return Buffer.from(JSON.stringify([ultimo, assinatura(busca)])).toString('base64url')
+// a continuação leva o pedido junto: usada noutro, pularia linhas sem avisar
+export function continuacaoDe(pedido: unknown, posicao: number): string {
+  return Buffer.from(JSON.stringify([posicao, assinatura(pedido)])).toString('base64url')
 }
 
-/** O último id já entregue; undefined se a continuação não saiu desta busca. */
-export function lerContinuacao(busca: Busca, continuacao: string): ProdutoId | undefined {
+/** Onde a página anterior parou; undefined se a continuação não saiu deste pedido. */
+export function lerContinuacao(pedido: unknown, continuacao: string): number | undefined {
   const lido = Marcador.safeParse(comoJson(Buffer.from(continuacao, 'base64url').toString()))
   if (!lido.success) return undefined
-  const [ultimo, daBusca] = lido.data
-  return daBusca === assinatura(busca) ? ultimo : undefined
+  const [posicao, dado] = lido.data
+  return dado === assinatura(pedido) ? posicao : undefined
 }
