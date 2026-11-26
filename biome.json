@@ -326,7 +326,7 @@
       }
     },
     {
-      "includes": ["scripts/carga-catalogo.ts"],
+      "includes": ["scripts/carga-catalogo.ts", "scripts/carga-catalogo.test.ts"],
       "linter": {
         "rules": {
           "style": {
@@ -345,10 +345,9 @@
                       "../**/plataformas/**",
                       "../**/coleta/**",
                       "../**/mcp/**",
-                      "../**/funcoes/**",
-                      "../**/config.ts"
+                      "../**/funcoes/**"
                     ],
-                    "message": "scripts/carga-catalogo.ts imports only dominio/ and banco/ (section 5)."
+                    "message": "scripts/carga-catalogo.ts imports only dominio/, banco/ and config.ts."
                   }
                 ]
               }
