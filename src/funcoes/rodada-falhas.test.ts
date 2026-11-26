@@ -237,4 +237,16 @@ describe('o que não roda', () => {
     // o histórico da rodada fica: houve uma entrega com a config errada
     assert.deepEqual(consertada.avisos, [{ tipo: 'CONFIG_INVALIDA', motivo }])
   })
+
+  test('config inválida entregue duas vezes: cada entrega deixa o seu aviso', async () => {
+    const curta = JSON.stringify({ tokenReserva: 'curto' })
+    const comReservaCurta = sql`${fonte.config} || ${curta}::jsonb`
+    await banco.dono.update(fonte).set({ config: comReservaCurta }).where(eq(fonte.codigo, 'abc'))
+    await using montada = await montar(banco.urlDoColetor)
+    assert.equal((await montada.disparar('abc')).status, 500)
+    assert.equal((await montada.disparar('abc')).status, 500)
+    const aviso = { tipo: 'CONFIG_INVALIDA', motivo: 'config inválida em tokenReserva' }
+    const [falhou] = await banco.rodadas()
+    assert.deepEqual([falhou?.situacao, falhou?.avisos], ['FALHOU', [aviso, aviso]])
+  })
 })
