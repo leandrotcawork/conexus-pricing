@@ -2,7 +2,7 @@ import { totalmem } from 'node:os'
 import { Readable } from 'node:stream'
 import { setTimeout as esperar } from 'node:timers/promises'
 import type { HttpCrawlerOptions, HttpCrawlingContext } from '@crawlee/http'
-import { Configuration, HttpCrawler, NonRetryableError, Session } from '@crawlee/http'
+import { Configuration, HttpCrawler, log, NonRetryableError, Session } from '@crawlee/http'
 import type { PedidoHttp, RespostaHttp } from '../plataformas/contrato.ts'
 
 const DETALHE_MAXIMO = 300
@@ -191,6 +191,11 @@ function opcoesDaLoja(opcoes: OpcoesDoCliente, { entregar, parar }: Ganchos): Ht
       })
     },
   }
+}
+
+/** Para quem imprime só o próprio resultado: vale para os clientes criados depois da chamada. */
+export function calarCrawlee(): void {
+  log.setLevel(log.LEVELS.OFF)
 }
 
 function configuracao(): Configuration {

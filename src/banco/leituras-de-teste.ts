@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { notInArray } from 'drizzle-orm'
 import type { Aviso, SituacaoRodada } from '../dominio/rodada.ts'
 import type { Banco } from './conexao.ts'
 import { abrirBanco, fecharBanco } from './conexao.ts'
@@ -145,13 +146,14 @@ async function gravarRodada(dono: Banco, agora: number, pedida: RodadaDeTeste): 
 }
 
 /**
- * Um catálogo inventado com meses de rodadas, além das três lojas das migrações: `nova` nunca
- * rodou e `antiga` está inativa.
+ * Um catálogo inventado com meses de rodadas em três lojas das migrações, mais `nova`, que nunca
+ * rodou, e `antiga`, inativa. As outras lojas das migrações saem: uma loja nova não muda a leitura.
  */
 export async function abrirBancoDeLeitura(urlBase: string) {
   const descartavel = await criarBancoDescartavel(urlBase)
   await descartavel.migrar()
   const dono = abrirBanco(descartavel.urls.dono)
+  await dono.delete(fonte).where(notInArray(fonte.codigo, ['abc', 'condec', 'telhanorte']))
   await dono.insert(produto).values([...CATALOGO, ...PAGINADOS])
   await dono.insert(fonte).values([
     { codigo: 'nova', nome: 'Loja Nova', plataforma: 'vtex', config: {} },

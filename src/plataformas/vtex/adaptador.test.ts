@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import { z } from 'zod'
+import { fonteDasMigracoes } from '../../../scripts/fontes.ts'
 import { decidir } from '../../dominio/observacao.ts'
 import type { Cadastro } from '../conformidade.ts'
 import { abrirLotes, conformidade, EAN_A, EAN_B, gravacaoDe, lido } from '../conformidade.ts'
@@ -21,14 +22,32 @@ function comCadastro(corpo: string, { ean, reais, disponivel }: Cadastro): strin
   return JSON.stringify([...busca, copia])
 }
 
+const CAMPOS_INVALIDOS = [{ lote: 51 }, { lote: 0 }, { origem: 'http://www.telhanorte.com.br' }]
+
 conformidade({
   adaptador: vtex,
   gravacoes: GRAVACOES,
   config: CONFIG,
-  camposInvalidos: [{ lote: 51 }, { lote: 0 }, { origem: 'http://www.telhanorte.com.br' }],
+  camposInvalidos: CAMPOS_INVALIDOS,
   origens: [ORIGEM],
   comCadastro,
 })
+
+for (const [loja, origem] of [
+  ['copafer', 'https://www.copafer.com.br'],
+  ['queroquero', 'https://www.queroquero.com.br'],
+  ['amoedo', 'https://www.amoedo.com.br'],
+] as const) {
+  conformidade({
+    adaptador: vtex,
+    loja,
+    gravacoes: new URL(`${loja}/`, GRAVACOES),
+    config: z.looseObject({}).parse(fonteDasMigracoes(loja).config),
+    camposInvalidos: CAMPOS_INVALIDOS,
+    origens: [origem],
+    comCadastro,
+  })
+}
 
 describe('VTEX', () => {
   const { lotes } = abrirLotes(vtex, CONFIG, () => assert.fail('a VTEX não tem preparo'))
