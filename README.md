@@ -6,11 +6,11 @@ e uma Function que serve o MCP.
 
 ## Estado
 
-Etapa E3. A carga do catálogo lê o Sankhya e grava os produtos. A Function de coleta roda a rodada de
-uma loja quando o gatilho do Neon a chama: pergunta cada produto do catálogo à Telha Norte (VTEX), à
-Condec (Tray) ou à ABC (Wake) e grava o que ela respondeu. As migrações criam o schema `precos`, as
-duas roles e as três lojas. A Function de MCP por enquanto só responde que está de pé. As ferramentas
-MCP (E4) e a agenda (E5) ainda não existem aqui.
+Etapa E4, a primeira entrega usável. A carga do catálogo lê o Sankhya e grava os produtos. A Function
+de coleta roda a rodada de uma loja quando o gatilho do Neon a chama: pergunta cada produto do
+catálogo à Telha Norte (VTEX), à Condec (Tray) ou à ABC (Wake) e grava o que ela respondeu. A
+Function de MCP serve quatro ferramentas de leitura sobre o que foi coletado. A agenda semanal (E5)
+ainda não existe aqui. As migrações criam o schema `precos`, as duas roles e as três lojas.
 
 | Etapa | Entrega |
 | --- | --- |
@@ -73,6 +73,7 @@ A publicação não roda no CI. Cada uma é feita à mão, com a autorização d
    | --- | --- |
    | `COLETOR_DATABASE_URL` | A URL com pooler do banco, com o usuário `precos_coletor` e uma senha sua |
    | `LEITOR_DATABASE_URL` | A mesma URL, com o usuário `precos_leitor` e outra senha |
+   | `MCP_TOKEN` | O token que o cliente do MCP envia: 32 caracteres ou mais, sem espaço. `openssl rand -hex 32` gera um |
 
    `openssl rand -hex 24` gera um valor que o Neon aceita como senha e que não precisa de escape na URL.
 
@@ -90,11 +91,14 @@ A publicação não roda no CI. Cada uma é feita à mão, com a autorização d
    ```
 
 5. Confira. `npx neon functions get coleta` e `npx neon functions get mcp` mostram a URL de cada uma.
-   `GET /` responde `{"dePe":true,...}` quando a Function entra no banco com a própria role.
+   Na coleta, `GET /` responde `{"dePe":true,...}` quando a Function entra no banco com a própria role.
+   O MCP só tem a rota `/mcp`: sem o token ela responde 401, o que mostra que a Function subiu. Que ela
+   lê o banco, quem mostra é a ferramenta `saude_coleta`, depois de [conectar o
+   Claude](#conectar-o-claude-ao-mcp).
 
    ```sh
    curl "$URL_DA_COLETA/"
-   curl "$URL_DO_MCP/"
+   curl -i -X POST "$URL_DO_MCP/mcp"
    ```
 
 6. Se quiser, grave o token reserva da ABC. É o valor que o site da loja envia no cabeçalho
@@ -108,6 +112,39 @@ A publicação não roda no CI. Cada uma é feita à mão, com a autorização d
    SET config = config || jsonb_build_object('tokenReserva', '<token>')
    WHERE codigo = 'abc';
    ```
+
+## Conectar o Claude ao MCP
+
+O endereço é a URL da Function `mcp` seguida de `/mcp`. Todo pedido leva o cabeçalho
+`Authorization: Bearer <token>`, com o valor de `MCP_TOKEN` que foi publicado. Sem ele, a resposta
+é 401. Há um token só: para trocá-lo, mude `MCP_TOKEN`, publique de novo e reconecte o cliente.
+
+No Claude Code, com `URL_DO_MCP` e `MCP_TOKEN` definidos no terminal:
+
+```sh
+claude mcp add --transport http precos "$URL_DO_MCP/mcp" --header "Authorization: Bearer $MCP_TOKEN"
+claude mcp list
+```
+
+O Claude Code guarda o cabeçalho na própria configuração, fora deste repositório.
+
+No claude.ai e no app, o conector personalizado envia um cabeçalho fixo pela seção **Request
+headers**, em beta: nome `authorization`, valor `Bearer ` seguido do token, sem login. Se a seção não
+aparecer, a conta ainda não tem o recurso. Ver
+[a documentação do conector](https://claude.com/docs/connectors/custom).
+
+Depois, pergunte em português: "quanto o mercado cobra neste produto?" ou "a coleta da semana está
+saudável?".
+
+| Ferramenta | Responde |
+| --- | --- |
+| `buscar_produto` | Produtos por texto, EAN, código interno ou marca, com o nosso preço, 20 por página |
+| `precos_atuais` | Por loja ativa, o que a última rodada `CONCLUIDA` ou `SUSPEITA` viu do produto |
+| `estatisticas_preco` | Mínimo, máximo, média e mediana entre as lojas contra o nosso preço, e o período de cada loja. Só preços `OK` |
+| `saude_coleta` | A última rodada de cada loja: situação, contagens, avisos e idade |
+
+`NAO_ENCONTRADO` quer dizer que a loja não vende o produto. `ERRO` quer dizer que a coleta falhou, e
+não se sabe o preço. As duas situações chegam separadas ao agente.
 
 ## Carga do catálogo
 

@@ -5,7 +5,10 @@ type Ambiente = Readonly<Record<string, string | undefined>>
 
 const AmbienteDaColeta = z.object({ COLETOR_DATABASE_URL: UrlDoBanco })
 
-const AmbienteDoMcp = z.object({ LEITOR_DATABASE_URL: UrlDoBanco })
+// ASCII visível, para caber num cabeçalho; curto demais se adivinha
+const Token = z.string().regex(/^[!-~]{32,}$/, 'precisa de 32 caracteres ou mais, sem espaço')
+
+const AmbienteDoMcp = z.object({ LEITOR_DATABASE_URL: UrlDoBanco, MCP_TOKEN: Token })
 
 const AmbienteDaMigracao = z.object({
   DATABASE_URL_UNPOOLED: UrlDoBanco,
@@ -47,7 +50,8 @@ export function configDaColeta(ambiente: Ambiente = process.env) {
 }
 
 export function configDoMcp(ambiente: Ambiente = process.env) {
-  return { urlDoBanco: ler(AmbienteDoMcp, ambiente).LEITOR_DATABASE_URL }
+  const lido = ler(AmbienteDoMcp, ambiente)
+  return { urlDoBanco: lido.LEITOR_DATABASE_URL, token: lido.MCP_TOKEN }
 }
 
 export function configDaMigracao(ambiente: Ambiente = process.env) {
@@ -92,6 +96,7 @@ export function valoresDaPublicacao(ambiente: Ambiente = process.env) {
   return {
     coletorUrl: ambiente.COLETOR_DATABASE_URL,
     leitorUrl: ambiente.LEITOR_DATABASE_URL,
+    mcpToken: ambiente.MCP_TOKEN,
   }
 }
 

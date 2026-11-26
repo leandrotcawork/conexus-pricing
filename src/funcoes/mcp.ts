@@ -1,14 +1,29 @@
+import { createHash, timingSafeEqual } from 'node:crypto'
 import { configDoMcp } from '../config.ts'
-import { saudeDoMcp } from '../mcp/saude.ts'
-import { naoEncontrado, respostaDeSaude } from './saude.ts'
+import { criarMcp } from '../mcp/servidor.ts'
+import { naoEncontrado } from './saude.ts'
+
+function resumo(texto: string): Buffer {
+  return createHash('sha256').update(texto).digest()
+}
+
+function naoAutorizado(): Response {
+  return Response.json(
+    { erro: 'token ausente ou inválido' },
+    { status: 401, headers: { 'www-authenticate': 'Bearer' } },
+  )
+}
 
 export function criarFuncaoMcp(config: ReturnType<typeof configDoMcp>) {
-  const saude = saudeDoMcp(config.urlDoBanco)
+  const mcp = criarMcp(config.urlDoBanco)
+  const esperado = resumo(`Bearer ${config.token}`)
   return {
     async fetch(pedido: Request): Promise<Response> {
-      const rota = `${pedido.method} ${new URL(pedido.url).pathname}`
-      if (rota === 'GET /') return respostaDeSaude(await saude())
-      return naoEncontrado()
+      if (new URL(pedido.url).pathname !== '/mcp') return naoEncontrado()
+      // resumos têm sempre o mesmo tamanho: o tempo não conta quanto do token está certo
+      const enviado = resumo(pedido.headers.get('authorization') ?? '')
+      if (!timingSafeEqual(enviado, esperado)) return naoAutorizado()
+      return await mcp.fetch(pedido)
     },
   }
 }
