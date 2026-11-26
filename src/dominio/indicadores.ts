@@ -91,12 +91,12 @@ export function emPromocao(cotacoes: readonly Cotacao[]): number {
   ).length
 }
 
-/** % das observações sem estoque. A coleta que falhou (`ERRO`) não conta: não se sabe. */
+/** % sem estoque entre as lojas que vendem o produto e mostraram o estoque: `OK` ou `SEM_ESTOQUE`. */
 export function rupturaPct(cotacoes: readonly Cotacao[]): number | null {
-  const sabidas = cotacoes.filter(({ situacao }) => situacao !== 'ERRO')
-  if (sabidas.length === 0) return null
-  const semEstoque = sabidas.filter(({ situacao }) => situacao === 'SEM_ESTOQUE')
-  return (semEstoque.length * 100) / sabidas.length
+  const vendem = cotacoes.filter(({ situacao }) => situacao === 'OK' || situacao === 'SEM_ESTOQUE')
+  if (vendem.length === 0) return null
+  const semEstoque = vendem.filter(({ situacao }) => situacao === 'SEM_ESTOQUE')
+  return (semEstoque.length * 100) / vendem.length
 }
 
 /** % de verdadeiros; null sem caso nenhum. */

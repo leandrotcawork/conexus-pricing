@@ -37,7 +37,7 @@ de cada loja; `k` é quantas lojas têm preço.
 | `cobertura` | Produtos da linha e quantos têm `k ≥ 1` | Quanto confiar na linha |
 | `emPromocao` | Preços abaixo do preço de lista que a própria loja declara | O preço baixo pode ser oferta |
 | `promocao` | `1 − preco ÷ precoLista` numa loja | 0,15 é 15% de desconto declarado |
-| `rupturaPct` | % das observações `SEM_ESTOQUE`, sem contar `ERRO` | Concorrente em falta não pressiona o preço |
+| `rupturaPct` | `SEM_ESTOQUE ÷ (OK + SEM_ESTOQUE)`, em %: só lojas que vendem o produto e mostraram o estoque; `NAO_ENCONTRADO`, `SEM_PRECO` e `ERRO` não contam; nulo sem nenhuma | Concorrente em falta não pressiona o preço |
 | `mudancas` | Cada par produto e loja contra a coleta anterior da loja, de outra semana | Quem mexe preço, e para onde |
 | `tendencia` | O índice nas 8 semanas mais novas: as 4 recentes contra as 4 anteriores, e a inclinação em % por semana | O mercado subindo ou descendo contra nós |
 

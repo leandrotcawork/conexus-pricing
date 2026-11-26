@@ -35,6 +35,8 @@ const COLUNAS_DO_PRODUTO = {
 export type Busca = {
   readonly texto?: string | undefined
   readonly marca?: string | undefined
+  /** A marca toda, não um trecho dela. */
+  readonly marcaInteira?: string | undefined
   readonly codprods?: readonly Codprod[] | undefined
   readonly eans?: readonly Ean[] | undefined
   /** Os códigos já com os subgrupos. */
@@ -56,11 +58,16 @@ function contem(coluna: SQLWrapper, trecho: string) {
   return sql`strpos(${semCaixaNemAcento(coluna)}, ${procurado}) > 0`
 }
 
-function filtros({ texto, marca, codprods, eans, grupos }: Busca) {
+function igual(coluna: SQLWrapper, valor: string) {
+  return sql`${semCaixaNemAcento(coluna)} = ${semCaixaNemAcento(sql`${valor}::text`)}`
+}
+
+function filtros({ texto, marca, marcaInteira, codprods, eans, grupos }: Busca) {
   const palavras = texto?.split(/\s+/) ?? []
   return [
     ...palavras.map((palavra) => contem(produto.descricao, palavra)),
     marca === undefined ? undefined : contem(produto.marca, marca),
+    marcaInteira === undefined ? undefined : igual(produto.marca, marcaInteira),
     codprods && inArray(produto.codprod, [...codprods]),
     eans && inArray(produto.ean, [...eans]),
     grupos && inArray(produto.grupoCodigo, [...grupos]),

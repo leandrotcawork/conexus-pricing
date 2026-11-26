@@ -22,7 +22,7 @@ async function produtosDoEscopo(
   if ('produtos' in escopo) return await acharProdutos(leituras, escopo.produtos)
   if ('grupo' in escopo && !arvore.tem(escopo.grupo)) return undefined
   const busca = {
-    marca: 'marca' in escopo ? escopo.marca : undefined,
+    marcaInteira: 'marca' in escopo ? escopo.marca : undefined,
     grupos: 'grupo' in escopo ? [...arvore.comSubgrupos(escopo.grupo)] : undefined,
   }
   return { produtos: await leituras.buscar({ busca }), naoEncontrados: [] }

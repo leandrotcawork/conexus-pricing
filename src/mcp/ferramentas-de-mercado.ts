@@ -14,7 +14,9 @@ import {
 const Escopo = z.union([
   z.strictObject({ produtos: z.array(ProdutoRef).min(1).max(LOTE) }),
   z.strictObject({ grupo: CodGrupoPedido }),
-  z.strictObject({ marca: z.string().trim().min(1) }),
+  z.strictObject({
+    marca: z.string().trim().min(1).describe('A marca inteira; ignora maiúsculas e acentos.'),
+  }),
   z.strictObject({ catalogo: z.literal(true) }),
 ])
 
@@ -50,7 +52,10 @@ const Linha = z.object({
   rupturaPct: z
     .number()
     .nullable()
-    .describe('% das observações SEM_ESTOQUE; as com ERRO não contam.'),
+    .describe(
+      'SEM_ESTOQUE ÷ (OK + SEM_ESTOQUE), em %: só as lojas que vendem o produto e mostraram o ' +
+        'estoque; NAO_ENCONTRADO, SEM_PRECO e ERRO não contam; null sem nenhuma.',
+    ),
   mudancas: z
     .object({
       subiram: z.number().int(),

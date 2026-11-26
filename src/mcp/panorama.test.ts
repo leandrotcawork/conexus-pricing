@@ -60,7 +60,7 @@ function indicadores(valores: Valores) {
     menorPrecoPct: valores.menor ?? null,
     amplitudePct: valores.amplitude ?? null,
     emPromocao: valores.emPromocao ?? 0,
-    rupturaPct: valores.ruptura ?? 0,
+    rupturaPct: valores.ruptura ?? null,
     mudancas: null,
     tendencia: null,
   }
@@ -70,8 +70,16 @@ function linha(chave: string, nome: string, valores: Valores, posicao: string | 
   return { chave, nome, posicao, ...indicadores(valores) }
 }
 
-const PISO_UM = { indice: 100, ponderado: 100, gap: 10, menor: 0, amplitude: 20, emPromocao: 1 }
-const PISO_DOIS = { indice: 80, ponderado: 80, gap: -20, menor: 100, ruptura: 33.33 }
+const PISO_UM = {
+  indice: 100,
+  ponderado: 100,
+  gap: 10,
+  menor: 0,
+  amplitude: 20,
+  emPromocao: 1,
+  ruptura: 0,
+}
+const PISO_DOIS = { indice: 80, ponderado: 80, gap: -20, menor: 100, ruptura: 50 }
 
 describe('panorama_precos com uma semana de coleta', () => {
   test('o total e cada produto saem com os indicadores calculados à mão', async () => {
@@ -79,7 +87,7 @@ describe('panorama_precos com uma semana de coleta', () => {
       semanasComColeta: 1,
       historico:
         'ainda não há semanas suficientes: mudanças pedem 4 semanas de coleta e a tendência pede 8; há 1',
-      // índice (100 + 80) / 2; ponderado (100×300 + 80×100) / 400; ruptura 1 de 10 sem o ERRO
+      // índice (100 + 80) / 2; ponderado (100×300 + 80×100) / 400; ruptura 1 de 6 com OK ou SEM_ESTOQUE
       total: indicadores({
         cobertura: [4, 3],
         indice: 90,
@@ -88,12 +96,12 @@ describe('panorama_precos com uma semana de coleta', () => {
         menor: 50,
         amplitude: 20,
         emPromocao: 1,
-        ruptura: 10,
+        ruptura: 16.67,
       }),
       linhas: [
         linha('1', 'PISO UM', { cobertura: [1, 1], ...PISO_UM }, 'NA_FAIXA'),
         linha('2', 'PISO DOIS', { cobertura: [1, 1], ...PISO_DOIS }, 'MAIS_BARATO'),
-        linha('3', 'TUBO SEM PRECO NOSSO', { cobertura: [1, 1] }),
+        linha('3', 'TUBO SEM PRECO NOSSO', { cobertura: [1, 1], ruptura: 0 }),
         linha('4', 'AVULSO', { cobertura: [1, 0] }),
       ],
       naoEncontrados: [],
@@ -104,7 +112,7 @@ describe('panorama_precos com uma semana de coleta', () => {
   test('por grupo, cada produto fica no seu grupo, com o caminho como nome', async () => {
     const { linhas } = await panorama({ ...TODOS, agruparPor: 'grupo' })
     assert.deepEqual(linhas, [
-      linha('20', 'Hidráulica', { cobertura: [1, 1] }),
+      linha('20', 'Hidráulica', { cobertura: [1, 1], ruptura: 0 }),
       linha('10', 'Revestimentos', { cobertura: [1, 1], ...PISO_UM }),
       linha('11', 'Revestimentos > Porcelanatos', { cobertura: [1, 1], ...PISO_DOIS }),
       linha('', 'Sem grupo', { cobertura: [1, 0] }),
@@ -132,6 +140,7 @@ describe('panorama_precos por loja', () => {
         gap: -5,
         menor: 100,
         emPromocao: 1,
+        ruptura: 0,
       }),
       linha('condec', 'Condec', {
         cobertura: [4, 1],
@@ -139,7 +148,7 @@ describe('panorama_precos por loja', () => {
         ponderado: 100,
         gap: 0,
         menor: 0,
-        ruptura: 33.33,
+        ruptura: 50,
       }),
       linha('telhanorte', 'Telha Norte', {
         cobertura: [4, 1],
@@ -147,6 +156,7 @@ describe('panorama_precos por loja', () => {
         ponderado: 91.67,
         gap: -8.33,
         menor: 0,
+        ruptura: 0,
       }),
     ])
   })
@@ -172,8 +182,9 @@ describe('o escopo e as páginas do panorama', () => {
     assert.partialDeepStrictEqual(lido.total, { indice: 90, cobertura: { produtos: 2 } })
   })
 
-  test('a marca ignora a caixa', async () => {
+  test('a marca é a inteira e ignora a caixa', async () => {
     assert.deepEqual(await chaves({ escopo: { marca: 'alfa' } }), ['1', '3'])
+    assert.deepEqual(await chaves({ escopo: { marca: 'alf' } }), [])
   })
 
   test('na lista de produtos, o inexistente não derruba os outros', async () => {

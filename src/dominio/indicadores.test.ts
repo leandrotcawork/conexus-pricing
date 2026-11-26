@@ -79,10 +79,14 @@ describe('o que as lojas fazem', () => {
     assert.equal(emPromocao(cotacoes), 1)
   })
 
-  test('a ruptura não conta a coleta que falhou', () => {
-    const cotacoes = [ok('a', 1), sem('b', 'SEM_ESTOQUE'), sem('c', 'ERRO'), sem('d', 'ERRO')]
+  test('a ruptura conta só as lojas que vendem o produto e mostraram o estoque', () => {
+    const cotacoes = [ok('a', 1), sem('b', 'SEM_ESTOQUE'), sem('c', 'ERRO'), sem('d', 'SEM_PRECO')]
     assert.equal(rupturaPct(cotacoes), 50)
-    assert.equal(rupturaPct([sem('a', 'ERRO')]), null)
+    const naoVendem = ['b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'].map((loja) =>
+      sem(loja, 'NAO_ENCONTRADO'),
+    )
+    assert.equal(rupturaPct([sem('a', 'SEM_ESTOQUE'), ...naoVendem]), 100)
+    assert.equal(rupturaPct([sem('a', 'ERRO'), sem('b', 'SEM_PRECO'), ...naoVendem]), null)
   })
 
   test('um par pede preço OK na mesma loja nas duas coletas', () => {
