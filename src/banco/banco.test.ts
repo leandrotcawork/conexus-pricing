@@ -77,7 +77,10 @@ after(async () => {
 
 describe('scripts/migrar.ts', () => {
   test('a primeira execução aplica as migrações e a segunda não aplica nada', async () => {
-    assert.match(primeiraSaida, /^migrações aplicadas: 3 \S+_inicial \S+_roles \S+_fontes$/m)
+    assert.match(
+      primeiraSaida,
+      /^migrações aplicadas: 4 \S+_inicial \S+_roles \S+_fontes \S+_observacao_por_produto$/m,
+    )
     assert.match(primeiraSaida, /^senhas definidas: precos_coletor precos_leitor$/m)
     const segundaSaida = await descartavel.migrar()
     assert.match(segundaSaida, /^migrações aplicadas: 0$/m)

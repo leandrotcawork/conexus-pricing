@@ -1,5 +1,5 @@
 import { abrirBanco } from '../banco/conexao.ts'
-import { saudeDe } from '../banco/leituras.ts'
+import { saudeDe } from '../banco/saude.ts'
 import { FonteCodigo } from '../dominio/marcas.ts'
 import type { ResultadoRodada } from './executar.ts'
 import { executarRodada } from './executar.ts'

@@ -8,6 +8,7 @@ import { urlDoBancoDeTeste } from '../config.ts'
 import { cortaOLote, entrega, HOJE, montar } from './rodada-de-teste.ts'
 
 const SEMANA_QUE_VEM = '2026-12-07T06:00:00Z'
+const EM_DUAS_SEMANAS = '2026-12-14T06:00:00Z'
 
 let banco: Awaited<ReturnType<typeof abrirBancoDeRodada>>
 
@@ -46,6 +47,7 @@ describe('quando a loja não responde direito', () => {
     }
     const [lote, umAUm, vezes] = [1, 3, 2]
     assert.equal(montada.loja.pedidos.length, (lote + umAUm) * vezes)
+    assert.partialDeepStrictEqual(await banco.rodadas(), [{ situacao: 'FALHOU' }])
   })
 
   test('o 403 num EAN só não derruba os outros', async () => {
@@ -84,6 +86,45 @@ describe('quando a loja não responde direito', () => {
     assert.deepEqual(corpo.avisos, [{ tipo: 'QUEDA_DE_OK', anterior: 3, atual: 0 }])
     const gravadas = (await banco.rodadas()).map((r) => r.situacao)
     assert.deepEqual(gravadas, ['CONCLUIDA', 'SUSPEITA'])
+  })
+})
+
+describe('uma rodada sem nenhum OK', () => {
+  test('nenhum OK e algum ERRO fecha como FALHOU, com aviso, e a reentrega não pergunta', async () => {
+    await using montada = await montar(banco.urlDoColetor, (pedido) =>
+      pedido.caminho.includes(B) ? { status: 403 } : comGravacao(pedido, 'vazio'),
+    )
+    const { status, corpo } = await montada.disparar('condec')
+    assert.equal(status, 200)
+    assert.partialDeepStrictEqual(corpo, {
+      tipo: 'FECHADA',
+      situacao: 'FALHOU',
+      contagens: { OK: 0, NAO_ENCONTRADO: 3, ERRO: 1 },
+    })
+    assert.partialDeepStrictEqual(corpo.avisos, [{}, { tipo: 'NENHUM_OK', erros: 1 }])
+    const pedidos = montada.loja.pedidos.length
+
+    const outra = await montada.disparar('condec')
+    assert.deepEqual([outra.status, outra.corpo.situacao], [200, 'FALHOU'])
+    assert.deepEqual(outra.corpo.avisos, corpo.avisos)
+    assert.equal(montada.loja.pedidos.length, pedidos)
+    assert.equal((await banco.observacoes()).length, 4)
+  })
+
+  test('a rodada sem nenhum OK não vira base: a queda seguinte ainda é SUSPEITA', async () => {
+    let resposta: 'lote' | 'fora' | 'vazio' = 'lote'
+    await using montada = await montar(banco.urlDoColetor, (pedido) =>
+      resposta === 'fora' ? { status: 500 } : comGravacao(pedido, resposta),
+    )
+    await montada.disparar('telhanorte', HOJE)
+    resposta = 'fora'
+    await montada.disparar('telhanorte', SEMANA_QUE_VEM)
+    resposta = 'vazio'
+    const { corpo } = await montada.disparar('telhanorte', EM_DUAS_SEMANAS)
+    assert.partialDeepStrictEqual(corpo, { situacao: 'SUSPEITA' })
+    assert.deepEqual(corpo.avisos, [{ tipo: 'QUEDA_DE_OK', anterior: 3, atual: 0 }])
+    const gravadas = (await banco.rodadas()).map((r) => r.situacao)
+    assert.deepEqual(gravadas, ['CONCLUIDA', 'FALHOU', 'SUSPEITA'])
   })
 })
 
@@ -195,5 +236,17 @@ describe('o que não roda', () => {
     assert.equal(consertada?.situacao, 'CONCLUIDA')
     // o histórico da rodada fica: houve uma entrega com a config errada
     assert.deepEqual(consertada.avisos, [{ tipo: 'CONFIG_INVALIDA', motivo }])
+  })
+
+  test('config inválida entregue duas vezes: cada entrega deixa o seu aviso', async () => {
+    const curta = JSON.stringify({ tokenReserva: 'curto' })
+    const comReservaCurta = sql`${fonte.config} || ${curta}::jsonb`
+    await banco.dono.update(fonte).set({ config: comReservaCurta }).where(eq(fonte.codigo, 'abc'))
+    await using montada = await montar(banco.urlDoColetor)
+    assert.equal((await montada.disparar('abc')).status, 500)
+    assert.equal((await montada.disparar('abc')).status, 500)
+    const aviso = { tipo: 'CONFIG_INVALIDA', motivo: 'config inválida em tokenReserva' }
+    const [falhou] = await banco.rodadas()
+    assert.deepEqual([falhou?.situacao, falhou?.avisos], ['FALHOU', [aviso, aviso]])
   })
 })

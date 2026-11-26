@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm'
 import {
   boolean,
   check,
+  index,
   integer,
   jsonb,
   pgSchema,
@@ -103,6 +104,7 @@ export const observacao = precos.table(
   },
   (t) => [
     primaryKey({ name: 'observacao_pk', columns: [t.rodadaId, t.produtoId] }),
+    index('observacao_produto_idx').on(t.produtoId),
     check('observacao_preco_positivo', sql`${t.precoCentavos} > 0 AND ${t.precoListaCentavos} > 0`),
     // quem tem preço em cada situação é a união Observacao do domínio
     check(

@@ -15,6 +15,7 @@ import { criarBancoDescartavel } from '../banco/descartavel.ts'
 import { produto } from '../banco/tabelas.ts'
 import { abrirLojaDeTeste, comGravacao } from '../coleta/loja-de-teste.ts'
 import { urlDoBancoDeTeste } from '../config.ts'
+import { TOKEN } from './mcp-de-teste.ts'
 
 const NEON_TS = fileURLToPath(new URL('../../neon.ts', import.meta.url))
 // roda como no runtime: importa o index.mjs do arquivo e chama o fetch, um pedido atrás do outro
@@ -23,12 +24,12 @@ const [arquivo, pedidos] = process.argv.slice(1)
 const { default: funcao } = await import(arquivo)
 for (const [url, init] of JSON.parse(pedidos)) {
   const resposta = await funcao.fetch(new Request(url, init))
-  const corpo = await resposta.json()
+  const corpo = await resposta.text()
   console.log('RESPOSTA ' + JSON.stringify({ status: resposta.status, corpo }))
 }
 process.exit(0)
 `
-const Resposta = z.object({ status: z.number(), corpo: z.unknown() })
+const Resposta = z.object({ status: z.number(), corpo: z.string() })
 const executar = promisify(execFile)
 const pastas: string[] = []
 
@@ -75,9 +76,22 @@ async function chamar(
   return linhas.map((linha) => Resposta.parse(JSON.parse(linha.slice('RESPOSTA '.length))))
 }
 
-function banco(slug: 'coleta' | 'mcp', url = urlDoBancoDeTeste()): Record<string, string> {
-  if (slug === 'mcp') return { LEITOR_DATABASE_URL: url }
-  return { COLETOR_DATABASE_URL: url }
+/** Uma chamada de ferramenta, como um cliente do protocolo de 2025 a manda. */
+function chamadaDeFerramenta(nome: string): RequestInit {
+  return {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${TOKEN}`,
+      accept: 'application/json, text/event-stream',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: { name: nome, arguments: {} },
+    }),
+  }
 }
 
 async function bancoDeRodada() {
@@ -89,7 +103,7 @@ async function bancoDeRodada() {
     .values({ codprod: '1', ean: '2000000000011', descricao: 'Item de teste' })
   await fecharBanco(dono)
   return {
-    url: descartavel.urls.coletor,
+    urls: descartavel.urls,
     [Symbol.asyncDispose]: () => descartavel.apagar(),
   }
 }
@@ -108,15 +122,27 @@ function entrega(agendadaPara: string): RequestInit {
 }
 
 describe('o arquivo que o neon deploy sobe', () => {
-  for (const slug of ['coleta', 'mcp'] as const) {
-    test(`${slug} carrega e consulta o banco`, async () => {
-      const pasta = publicar(await buildFunctionBundle(await funcaoDoNeonTs(slug)))
-      const [resposta] = await chamar(pasta, banco(slug), [['https://funcao.teste/', {}]])
-      // o dono não é a role da função: a recusa prova que o SELECT rodou dentro do bundle
-      assert.equal(resposta?.status, 503)
-      assert.partialDeepStrictEqual(resposta.corpo, { motivo: 'ROLE_ERRADA' })
-    })
-  }
+  test('coleta carrega e consulta o banco', async () => {
+    const pasta = publicar(await buildFunctionBundle(await funcaoDoNeonTs('coleta')))
+    const env = { COLETOR_DATABASE_URL: urlDoBancoDeTeste() }
+    const [resposta] = await chamar(pasta, env, [['https://funcao.teste/', {}]])
+    // o dono não é a role da função: a recusa prova que o SELECT rodou dentro do bundle
+    assert.equal(resposta?.status, 503)
+    assert.match(resposta.corpo, /ROLE_ERRADA/)
+  })
+
+  test('mcp pede o token e responde uma ferramenta lendo o banco', async () => {
+    await using rodada = await bancoDeRodada()
+    const pasta = publicar(await buildFunctionBundle(await funcaoDoNeonTs('mcp')))
+    const env = { LEITOR_DATABASE_URL: rodada.urls.leitor, MCP_TOKEN: TOKEN }
+    const url = 'https://funcao.teste/mcp'
+    const [semToken, comToken] = await chamar(pasta, env, [
+      [url, { method: 'POST' }],
+      [url, chamadaDeFerramenta('saude_coleta')],
+    ])
+    assert.deepEqual([semToken?.status, comToken?.status], [401, 200])
+    assert.match(comToken?.corpo ?? '', /"loja":"telhanorte"/)
+  })
 
   test('a coleta empacotada roda duas rodadas no mesmo processo, sem disco', async () => {
     await using loja = await abrirLojaDeTeste((pedido) => comGravacao(pedido))
@@ -125,13 +151,14 @@ describe('o arquivo que o neon deploy sobe', () => {
     const fixture = { ...coleta, source: 'src/funcoes/rodada-empacotada.fixture.ts' }
     const pasta = publicar(await buildFunctionBundle(fixture))
     const url = `https://funcao.teste/condec?loja=${encodeURIComponent(loja.url(''))}`
-    const respostas = await chamar(pasta, banco('coleta', rodada.url), [
+    const env = { COLETOR_DATABASE_URL: rodada.urls.coletor }
+    const respostas = await chamar(pasta, env, [
       [url, entrega('2026-11-30T06:00:00Z')],
       [url, entrega('2026-12-07T06:00:00Z')],
     ])
     const Fechada = z.object({ situacao: z.string(), contagens: z.object({ OK: z.number() }) })
     assert.deepEqual(
-      respostas.map((r) => Fechada.parse(r.corpo)),
+      respostas.map((r) => Fechada.parse(JSON.parse(r.corpo))),
       [
         { situacao: 'CONCLUIDA', contagens: { OK: 1 } },
         { situacao: 'CONCLUIDA', contagens: { OK: 1 } },

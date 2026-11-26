@@ -104,6 +104,11 @@ function acrescentando(avisos: readonly Aviso[]) {
   return sql`${rodada.avisos} || ${JSON.stringify(avisos)}::jsonb`
 }
 
+function acrescentandoSemRepetirNenhumOk(avisos: readonly Aviso[]) {
+  const novos = sql`select jsonb_agg(a) from jsonb_array_elements(${JSON.stringify(avisos)}::jsonb) a where a->>'tipo' <> 'NENHUM_OK' or not ${rodada.avisos} @> jsonb_build_array(a)`
+  return sql`${rodada.avisos} || coalesce((${novos}), '[]'::jsonb)`
+}
+
 export async function registrar(
   banco: Banco,
   lote: {
@@ -174,7 +179,7 @@ export async function fecharRodada(
     .set({
       situacao,
       contagens,
-      avisos: acrescentando(avisos),
+      avisos: acrescentandoSemRepetirNenhumOk(avisos),
       sinalEm: sql`now()`,
       concluidaEm: sql`now()`,
     })

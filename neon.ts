@@ -20,7 +20,10 @@ export default defineConfig({
     mcp: {
       name: 'mcp de precos',
       source: 'src/funcoes/mcp.ts',
-      env: { LEITOR_DATABASE_URL: obrigatoria(valores.leitorUrl) },
+      env: {
+        LEITOR_DATABASE_URL: obrigatoria(valores.leitorUrl),
+        MCP_TOKEN: obrigatoria(valores.mcpToken),
+      },
     },
   },
 })

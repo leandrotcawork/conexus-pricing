@@ -1,0 +1,752 @@
+{
+  "version": "8",
+  "dialect": "postgres",
+  "id": "2095ae2c-114d-4138-91ec-a0dd023c057e",
+  "prevIds": [
+    "abea5970-0167-4282-8441-2f32704f891d"
+  ],
+  "ddl": [
+    {
+      "name": "precos",
+      "entityType": "schemas"
+    },
+    {
+      "values": [
+        "vtex",
+        "tray",
+        "wake"
+      ],
+      "name": "plataforma",
+      "entityType": "enums",
+      "schema": "precos"
+    },
+    {
+      "values": [
+        "OK",
+        "SEM_ESTOQUE",
+        "SEM_PRECO",
+        "NAO_ENCONTRADO",
+        "ERRO"
+      ],
+      "name": "situacao_observacao",
+      "entityType": "enums",
+      "schema": "precos"
+    },
+    {
+      "values": [
+        "RODANDO",
+        "CONCLUIDA",
+        "SUSPEITA",
+        "FALHOU",
+        "INTERROMPIDA"
+      ],
+      "name": "situacao_rodada",
+      "entityType": "enums",
+      "schema": "precos"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "fonte",
+      "entityType": "tables",
+      "schema": "precos"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "observacao",
+      "entityType": "tables",
+      "schema": "precos"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "produto",
+      "entityType": "tables",
+      "schema": "precos"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "rodada",
+      "entityType": "tables",
+      "schema": "precos"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "always",
+        "name": "fonte_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "2147483647",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "id",
+      "entityType": "columns",
+      "schema": "precos",
+      "table": "fonte"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "codigo",
+      "entityType": "columns",
+      "schema": "precos",
+      "table": "fonte"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "nome",
+      "entityType": "columns",
+      "schema": "precos",
+      "table": "fonte"
+    },
+    {
+      "type": "plataforma",
+      "typeSchema": "precos",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "plataforma",
+      "entityType": "columns",
+      "schema": "precos",
+      "table": "fonte"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "config",
+      "entityType": "columns",
+      "schema": "precos",
+      "table": "fonte"
+    },
+    {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "true",
+      "generated": null,
+      "identity": null,
+      "name": "ativa",
+      "entityType": "columns",
+      "schema": "precos",
+      "table": "fonte"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "rodada_id",
+      "entityType": "columns",
+      "schema": "precos",
+      "table": "observacao"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "produto_id",
+      "entityType": "columns",
+      "schema": "precos",
+      "table": "observacao"
+    },
+    {
+      "type": "situacao_observacao",
+      "typeSchema": "precos",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "situacao",
+      "entityType": "columns",
+      "schema": "precos",
+      "table": "observacao"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "preco_centavos",
+      "entityType": "columns",
+      "schema": "precos",
+      "table": "observacao"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "preco_lista_centavos",
+      "entityType": "columns",
+      "schema": "precos",
+      "table": "observacao"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "vendedor",
+      "entityType": "columns",
+      "schema": "precos",
+      "table": "observacao"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "url",
+      "entityType": "columns",
+      "schema": "precos",
+      "table": "observacao"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "detalhe",
+      "entityType": "columns",
+      "schema": "precos",
+      "table": "observacao"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "cadastros",
+      "entityType": "columns",
+      "schema": "precos",
+      "table": "observacao"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "coletado_em",
+      "entityType": "columns",
+      "schema": "precos",
+      "table": "observacao"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "always",
+        "name": "produto_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "2147483647",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "id",
+      "entityType": "columns",
+      "schema": "precos",
+      "table": "produto"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "codprod",
+      "entityType": "columns",
+      "schema": "precos",
+      "table": "produto"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "ean",
+      "entityType": "columns",
+      "schema": "precos",
+      "table": "produto"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "referencia_fabricante",
+      "entityType": "columns",
+      "schema": "precos",
+      "table": "produto"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "descricao",
+      "entityType": "columns",
+      "schema": "precos",
+      "table": "produto"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "marca",
+      "entityType": "columns",
+      "schema": "precos",
+      "table": "produto"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "nosso_preco_centavos",
+      "entityType": "columns",
+      "schema": "precos",
+      "table": "produto"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "carregado_em",
+      "entityType": "columns",
+      "schema": "precos",
+      "table": "produto"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "always",
+        "name": "rodada_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "2147483647",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "id",
+      "entityType": "columns",
+      "schema": "precos",
+      "table": "rodada"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "fonte_id",
+      "entityType": "columns",
+      "schema": "precos",
+      "table": "rodada"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "agendada_para",
+      "entityType": "columns",
+      "schema": "precos",
+      "table": "rodada"
+    },
+    {
+      "type": "situacao_rodada",
+      "typeSchema": "precos",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "situacao",
+      "entityType": "columns",
+      "schema": "precos",
+      "table": "rodada"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "iniciada_em",
+      "entityType": "columns",
+      "schema": "precos",
+      "table": "rodada"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "sinal_em",
+      "entityType": "columns",
+      "schema": "precos",
+      "table": "rodada"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "concluida_em",
+      "entityType": "columns",
+      "schema": "precos",
+      "table": "rodada"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "contagens",
+      "entityType": "columns",
+      "schema": "precos",
+      "table": "rodada"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "avisos",
+      "entityType": "columns",
+      "schema": "precos",
+      "table": "rodada"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "versao",
+      "entityType": "columns",
+      "schema": "precos",
+      "table": "rodada"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "produto_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "observacao_produto_idx",
+      "entityType": "indexes",
+      "schema": "precos",
+      "table": "observacao"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "rodada_id"
+      ],
+      "schemaTo": "precos",
+      "tableTo": "rodada",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "observacao_rodada_id_rodada_id_fkey",
+      "entityType": "fks",
+      "schema": "precos",
+      "table": "observacao"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "produto_id"
+      ],
+      "schemaTo": "precos",
+      "tableTo": "produto",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "RESTRICT",
+      "name": "observacao_produto_id_produto_id_fkey",
+      "entityType": "fks",
+      "schema": "precos",
+      "table": "observacao"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "fonte_id"
+      ],
+      "schemaTo": "precos",
+      "tableTo": "fonte",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "RESTRICT",
+      "name": "rodada_fonte_id_fonte_id_fkey",
+      "entityType": "fks",
+      "schema": "precos",
+      "table": "rodada"
+    },
+    {
+      "columns": [
+        "rodada_id",
+        "produto_id"
+      ],
+      "nameExplicit": true,
+      "name": "observacao_pk",
+      "entityType": "pks",
+      "schema": "precos",
+      "table": "observacao"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "fonte_pkey",
+      "schema": "precos",
+      "table": "fonte",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "produto_pkey",
+      "schema": "precos",
+      "table": "produto",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "rodada_pkey",
+      "schema": "precos",
+      "table": "rodada",
+      "entityType": "pks"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "fonte_id",
+        "agendada_para"
+      ],
+      "nullsNotDistinct": false,
+      "name": "rodada_uma_por_agendamento",
+      "entityType": "uniques",
+      "schema": "precos",
+      "table": "rodada"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "codigo"
+      ],
+      "nullsNotDistinct": false,
+      "name": "fonte_um_por_codigo",
+      "schema": "precos",
+      "table": "fonte",
+      "entityType": "uniques"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "codprod"
+      ],
+      "nullsNotDistinct": false,
+      "name": "produto_um_por_codprod",
+      "schema": "precos",
+      "table": "produto",
+      "entityType": "uniques"
+    },
+    {
+      "value": "\"codigo\" ~ '^[a-z][a-z0-9]{1,19}$'",
+      "name": "fonte_codigo_valido",
+      "entityType": "checks",
+      "schema": "precos",
+      "table": "fonte"
+    },
+    {
+      "value": "\"preco_centavos\" > 0 AND \"preco_lista_centavos\" > 0",
+      "name": "observacao_preco_positivo",
+      "entityType": "checks",
+      "schema": "precos",
+      "table": "observacao"
+    },
+    {
+      "value": "\"situacao\" NOT IN ('OK', 'SEM_ESTOQUE') OR \"preco_centavos\" IS NOT NULL",
+      "name": "observacao_com_preco_tem_preco",
+      "entityType": "checks",
+      "schema": "precos",
+      "table": "observacao"
+    },
+    {
+      "value": "\"situacao\" NOT IN ('SEM_PRECO', 'NAO_ENCONTRADO', 'ERRO') OR \"preco_centavos\" IS NULL",
+      "name": "observacao_sem_preco_sem_valor",
+      "entityType": "checks",
+      "schema": "precos",
+      "table": "observacao"
+    },
+    {
+      "value": "\"situacao\" = 'OK' OR \"preco_lista_centavos\" IS NULL",
+      "name": "observacao_preco_lista_so_no_ok",
+      "entityType": "checks",
+      "schema": "precos",
+      "table": "observacao"
+    },
+    {
+      "value": "\"situacao\" <> 'ERRO' OR \"detalhe\" IS NOT NULL",
+      "name": "observacao_erro_tem_detalhe",
+      "entityType": "checks",
+      "schema": "precos",
+      "table": "observacao"
+    },
+    {
+      "value": "\"ean\" ~ '^[0-9]{8,14}$'",
+      "name": "produto_ean_valido",
+      "entityType": "checks",
+      "schema": "precos",
+      "table": "produto"
+    },
+    {
+      "value": "\"nosso_preco_centavos\" > 0",
+      "name": "produto_nosso_preco_positivo",
+      "entityType": "checks",
+      "schema": "precos",
+      "table": "produto"
+    },
+    {
+      "value": "(\"situacao\" = 'RODANDO') = (\"concluida_em\" IS NULL)",
+      "name": "rodada_aberta_so_rodando",
+      "entityType": "checks",
+      "schema": "precos",
+      "table": "rodada"
+    }
+  ],
+  "renames": []
+}
