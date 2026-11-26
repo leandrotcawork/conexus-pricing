@@ -40,6 +40,7 @@ const PRODUTOS: readonly Produto[] = [
   [109, '2000000000109', null, null, 'S'],
   [110, '2000000000110', null, null, 'S'],
   [111, '2000000000111', null, null, 'S'],
+  [116, '2000000000116', null, null, 'S'],
   // fora do universo: inativo, EAN curto, EAN longo e sem EAN
   [112, '2000000000112', null, null, 'N'],
   [113, '20000000113', null, null, 'S'],
@@ -111,11 +112,13 @@ const NOTAS: readonly Nota[] = [
   [109, 'V', 1, 30],
   [109, 'D', 3, 30, { status: 'P' }],
   [109, 'P', 9, 10],
-  // sem venda líquida positiva: fora, mesmo comprado
+  // sem venda líquida positiva: C se comprado (110 devolveu mais do que vendeu, 111 só comprou)
   [110, 'V', 1, 500],
   [110, 'D', 3, 600],
   [110, 'C', 8, 10],
   [111, 'C', 8, 10],
+  // sem venda e sem compra comercial: fora
+  [116, 'C', 10, 10],
   // fora do universo: se entrassem, mudariam todas as classes
   [112, 'V', 1, 100000],
   [113, 'V', 1, 100000],

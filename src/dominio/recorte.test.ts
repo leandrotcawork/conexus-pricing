@@ -67,11 +67,11 @@ describe('a curva ABC', () => {
     }
   })
 
-  test('sem venda líquida positiva não entra, mesmo comprado, nem pesa no total', () => {
-    const vendas = [venda(1, 8000), venda(2, 2000), venda(3, 100)]
-    const devolvido = movimento(3, 'DEVOLUCAO', 9000)
-    const movimentos = [...vendas, devolvido, compra(3), compra(4)]
-    assert.deepEqual(classes(4, movimentos), ['1:A', '2:B'])
+  test('sem venda líquida positiva é C: entra se comprado, e não pesa no total', () => {
+    const vendas = [venda(1, 8000), venda(2, 2000), venda(3, 100), venda(5, 100)]
+    const devolvidos = [movimento(3, 'DEVOLUCAO', 9000), movimento(5, 'DEVOLUCAO', 100)]
+    const movimentos = [...vendas, ...devolvidos, compra(3), compra(4)]
+    assert.deepEqual(classes(6, movimentos), ['1:A', '2:B', '3:C', '4:C'])
   })
 
   test('um movimento de produto fora do universo não pesa na curva', () => {
@@ -90,7 +90,7 @@ function comprouCom(operacao: string) {
   return classes(2, movimentos).length === 2
 }
 
-/** O produto 2 vendeu só nesta operação: ele aparece na curva se ela conta como venda. */
+/** O produto 2 vendeu só nesta operação e não foi comprado: entra se ela conta como venda. */
 function vendeuCom(operacao: string) {
   return classes(2, [venda(1, 100), movimento(2, 'VENDA', 100, operacao)]).length === 2
 }

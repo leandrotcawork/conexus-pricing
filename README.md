@@ -120,8 +120,8 @@ de linhas em `precos.produto`.
 | Venda líquida, 12 meses | Itens de nota de venda (`V`) liberada, `VLRTOT − VLRDESC`, menos as devoluções (`D`) liberadas |
 | Compra, 12 meses | Existe nota de compra (`C`) ou pedido de compra (`O`) liberado |
 | Operação comercial | Pela descrição mais recente no `TGFTOP`; os trechos que excluem estão em `src/dominio/recorte.ts` |
-| Curva ABC | Produtos em ordem de venda líquida: A com acumulado anterior abaixo de 80% do total, B abaixo de 95%, C no resto |
-| Recorte | Classes A e B, mais os da classe C com compra. Sem venda líquida positiva, fica fora |
+| Curva ABC | Produtos em ordem de venda líquida: A com acumulado anterior abaixo de 80% do total, B abaixo de 95%, C no resto. Sem venda líquida positiva, é C e não entra no total |
+| Recorte | Classes A e B, mais os da classe C com compra |
 | Nosso preço | Tabela 0, na versão vigente mais recente que contém o produto; preço zero é ausência |
 
 ### Antes de rodar

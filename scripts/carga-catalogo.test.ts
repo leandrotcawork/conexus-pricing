@@ -128,14 +128,16 @@ const GABARITO = [
   ['104', '20000000000104', 'FAB-104', 'Marca A', null],
   ['105', '2000000000105', 'FAB-105', 'Marca A', 555],
   ['106', '2000000000106', 'FAB-106', 'Marca A', null],
+  ['110', '2000000000110', null, null, null],
+  ['111', '2000000000111', null, null, null],
 ] as const
 
-const SAIDA = `produtos do recorte R3: 6
-sem nosso preço: 3
+const SAIDA = `produtos do recorte R3: 8
+sem nosso preço: 5
 classe A: 2 (acumulado 2)
 classe B: 2 (acumulado 4)
-classe C: 2 (acumulado 6)
-linhas em precos.produto: 6
+classe C: 4 (acumulado 8)
+linhas em precos.produto: 8
 `
 
 describe('scripts/carga-catalogo.ts contra o Oracle local', { skip: SEM_ORACLE }, () => {

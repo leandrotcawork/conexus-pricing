@@ -91,7 +91,8 @@ function classeDe(antes: number, total: number): Classe {
 
 /**
  * O recorte R3: curva A e B, mais os C comprados nos últimos 12 meses. A curva ordena os produtos
- * do universo pela venda líquida; quem não tem venda líquida positiva fica fora dela e do recorte.
+ * do universo pela venda líquida; quem não tem venda líquida positiva conta zero, não pesa no total
+ * e fica no fim da curva, como C.
  */
 export function recorteR3(
   universo: readonly ProdutoDoCatalogo[],
@@ -99,8 +100,7 @@ export function recorteR3(
 ): readonly ItemDoRecorte[] {
   const { vendido, comprados } = somar(movimentos)
   const curva = universo
-    .map((produto) => ({ produto, valor: vendido.get(produto.codprod) ?? 0 }))
-    .filter(({ valor }) => valor > 0)
+    .map((produto) => ({ produto, valor: Math.max(vendido.get(produto.codprod) ?? 0, 0) }))
     // o código desempata, para o corte das classes não depender da ordem de leitura
     .sort((a, b) => b.valor - a.valor || Number(a.produto.codprod) - Number(b.produto.codprod))
   const total = curva.reduce((soma, { valor }) => soma + valor, 0)
