@@ -2,10 +2,12 @@ import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { after, before, describe, test } from 'node:test'
+import { setTimeout } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { asc } from 'drizzle-orm'
 import oracledb from 'oracledb'
+import { z } from 'zod'
 import type { Banco } from '../src/banco/conexao.ts'
 import { abrirBanco, fecharBanco } from '../src/banco/conexao.ts'
 import { criarBancoDescartavel } from '../src/banco/descartavel.ts'
@@ -43,6 +45,29 @@ function nomeNovo(prefixo: string): string {
   return `${prefixo}_${randomUUID().replaceAll('-', '').slice(0, 12)}`.toUpperCase()
 }
 
+const TabelaRecemMudada = z.object({ errorNum: z.literal(1466) })
+
+/**
+ * Logo depois do DDL, uma leitura em `READ ONLY` pode falhar com ORA-01466, porque o Oracle só
+ * resolve o instante dela com alguns segundos de grão. Espera até a leitura da carga passar.
+ */
+async function esperarLeitura(conexao: oracledb.Connection, dono: string): Promise<void> {
+  for (;;) {
+    try {
+      await conexao.execute('SET TRANSACTION READ ONLY')
+      for (const tabela of NOMES_DAS_TABELAS) {
+        await conexao.execute(`SELECT COUNT(*) FROM ${dono}.${tabela}`)
+      }
+      return
+    } catch (erro) {
+      if (!TabelaRecemMudada.safeParse(erro).success) throw erro
+    } finally {
+      await conexao.rollback()
+    }
+    await setTimeout(500)
+  }
+}
+
 /**
  * Um dono das tabelas falsas e um leitor que só tem SELECT nelas, os dois novos e apagados no fim:
  * nada que já exista no servidor é tocado, e criar usuário exige a senha de um administrador.
@@ -67,6 +92,13 @@ async function criarSankhyaDescartavel(config: NonNullable<typeof oracle>) {
     await dono.execute(`GRANT SELECT ON ${tabela} TO ${nomes.leitor}`)
   }
   await dono.commit()
+  const leitor = await oracledb.getConnection({
+    user: nomes.leitor,
+    password: senha,
+    connectString,
+  })
+  await esperarLeitura(leitor, nomes.dono)
+  await leitor.close()
   return {
     env: {
       SANKHYA_ORACLE_HOST: config.host,
