@@ -1,0 +1,10 @@
+www.condec.com.br · GET /web_api/products?ean=2000000000008&limit=50 · 2026-11-25
+HTTP 200
+content-type: application/json; charset=ISO-8859-1
+
+{
+  "paging": {
+    "total": 0
+  },
+  "Products": []
+}

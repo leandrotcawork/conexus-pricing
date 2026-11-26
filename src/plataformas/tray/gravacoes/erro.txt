@@ -1,0 +1,12 @@
+www.condec.com.br · GET /web_api/products/0 · 2026-11-25
+HTTP 400
+content-type: application/json; charset=ISO-8859-1
+
+{
+  "code": 400,
+  "url": "/web_api/products/0",
+  "name": "texto inventado",
+  "causes": [
+    "texto inventado"
+  ]
+}

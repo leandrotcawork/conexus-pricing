@@ -10,11 +10,13 @@ import { loadConfigFromFile, resolveConfig } from '@neon/config/v1'
 import { buildFunctionBundle } from '@neon/config-runtime/v1'
 import { unzipSync } from 'fflate'
 import { z } from 'zod'
-import { abrirLojaDeTeste } from '../coleta/loja-de-teste.ts'
+import { abrirBanco, fecharBanco } from '../banco/conexao.ts'
+import { criarBancoDescartavel } from '../banco/descartavel.ts'
+import { produto } from '../banco/tabelas.ts'
+import { abrirLojaDeTeste, comGravacao } from '../coleta/loja-de-teste.ts'
 import { urlDoBancoDeTeste } from '../config.ts'
 
 const NEON_TS = fileURLToPath(new URL('../../neon.ts', import.meta.url))
-const TOKEN = 'token-de-teste-com-mais-de-32-caracteres'
 // roda como no runtime: importa o index.mjs do arquivo e chama o fetch, um pedido atrás do outro
 const CHAMAR = `
 const [arquivo, pedidos] = process.argv.slice(1)
@@ -73,10 +75,36 @@ async function chamar(
   return linhas.map((linha) => Resposta.parse(JSON.parse(linha.slice('RESPOSTA '.length))))
 }
 
-function banco(slug: 'coleta' | 'mcp'): Record<string, string> {
-  const url = urlDoBancoDeTeste()
+function banco(slug: 'coleta' | 'mcp', url = urlDoBancoDeTeste()): Record<string, string> {
   if (slug === 'mcp') return { LEITOR_DATABASE_URL: url }
-  return { COLETOR_DATABASE_URL: url, ALCANCE_TOKEN: TOKEN }
+  return { COLETOR_DATABASE_URL: url }
+}
+
+async function bancoDeRodada() {
+  const descartavel = await criarBancoDescartavel(urlDoBancoDeTeste())
+  await descartavel.migrar()
+  const dono = abrirBanco(descartavel.urls.dono)
+  await dono
+    .insert(produto)
+    .values({ codprod: '1', ean: '2000000000011', descricao: 'Item de teste' })
+  await fecharBanco(dono)
+  return {
+    url: descartavel.urls.coletor,
+    [Symbol.asyncDispose]: () => descartavel.apagar(),
+  }
+}
+
+function entrega(agendadaPara: string): RequestInit {
+  return {
+    method: 'POST',
+    headers: { 'x-neon-trigger-invocation-id': 'entrega-1' },
+    body: JSON.stringify({
+      version: 1,
+      invocation_id: 'entrega-1',
+      trigger: { type: 'schedule', id: 'gatilho-1', name: 'condec' },
+      data: { scheduled_at: agendadaPara },
+    }),
+  }
 }
 
 describe('o arquivo que o neon deploy sobe', () => {
@@ -90,30 +118,26 @@ describe('o arquivo que o neon deploy sobe', () => {
     })
   }
 
-  test('o Crawlee empacotado faz os pedidos, de novo no mesmo processo, sem disco', async () => {
-    await using loja = await abrirLojaDeTeste(() => ({ status: 200 }))
+  test('a coleta empacotada roda duas rodadas no mesmo processo, sem disco', async () => {
+    await using loja = await abrirLojaDeTeste((pedido) => comGravacao(pedido))
+    await using rodada = await bancoDeRodada()
     const coleta = await funcaoDoNeonTs('coleta')
-    const fixture = { ...coleta, source: 'src/funcoes/alcance-empacotado.fixture.ts' }
+    const fixture = { ...coleta, source: 'src/funcoes/rodada-empacotada.fixture.ts' }
     const pasta = publicar(await buildFunctionBundle(fixture))
-    const url = `https://funcao.teste/_alcance?loja=${encodeURIComponent(loja.url(''))}`
-    const pedido = {
-      method: 'POST',
-      headers: { authorization: `Bearer ${TOKEN}` },
-      body: JSON.stringify({ ean: '2000000000015', tokenAbc: 'token-da-loja' }),
-    }
-    const respostas = await chamar(pasta, banco('coleta'), [
-      [url, pedido],
-      [url, pedido],
+    const url = `https://funcao.teste/condec?loja=${encodeURIComponent(loja.url(''))}`
+    const respostas = await chamar(pasta, banco('coleta', rodada.url), [
+      [url, entrega('2026-11-30T06:00:00Z')],
+      [url, entrega('2026-12-07T06:00:00Z')],
     ])
-    const Lojas = z.object({ lojas: z.array(z.object({ status: z.number().nullable() })) })
+    const Fechada = z.object({ situacao: z.string(), contagens: z.object({ OK: z.number() }) })
     assert.deepEqual(
-      respostas.map((r) => Lojas.parse(r.corpo).lojas.map((l) => l.status)),
+      respostas.map((r) => Fechada.parse(r.corpo)),
       [
-        [200, 200, 200],
-        [200, 200, 200],
+        { situacao: 'CONCLUIDA', contagens: { OK: 1 } },
+        { situacao: 'CONCLUIDA', contagens: { OK: 1 } },
       ],
     )
-    assert.equal(loja.pedidos.length, 6)
+    assert.equal(loja.pedidos.length, 2)
     assert.equal(existsSync(join(pasta, 'storage')), false)
   })
 })

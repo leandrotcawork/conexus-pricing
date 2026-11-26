@@ -1,0 +1,14 @@
+storefront-api.fbits.net · POST /graphql · 2026-11-25
+HTTP 200
+content-type: application/json; charset=utf-8
+
+{
+  "data": {
+    "products": {
+      "pageInfo": {
+        "hasNextPage": false
+      },
+      "edges": []
+    }
+  }
+}

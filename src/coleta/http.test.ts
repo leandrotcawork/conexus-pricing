@@ -5,32 +5,10 @@ import { createServer } from 'node:https'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, describe, test } from 'node:test'
-import type { PedidoHttp } from '../plataformas/contrato.ts'
-import type { ResultadoHttp } from './http.ts'
+import { gzipSync } from 'node:zlib'
 import { clienteCrawlee } from './http.ts'
+import { buscar, get, OPCOES, resumo } from './http-de-teste.ts'
 import { abrirLojaDeTeste, escutar, fecharServidor } from './loja-de-teste.ts'
-
-const OPCOES = { porMinuto: 6000, tentativas: 1, prazoPedidoMs: 5000, esperaMaximaMs: 60_000 }
-
-function get(url: string): PedidoHttp {
-  return { url, metodo: 'GET', cabecalhos: {}, corpo: null }
-}
-
-async function buscar(pedidos: readonly PedidoHttp[], opcoes = OPCOES) {
-  const resultados = new Map<number, ResultadoHttp>()
-  await clienteCrawlee(opcoes).buscar(pedidos, async (indice, resultado) => {
-    resultados.set(indice, resultado)
-  })
-  return pedidos.map((_, indice) => resultados.get(indice))
-}
-
-/** A situação e o status de cada resultado, sem os tempos. */
-function resumo(resultados: readonly (ResultadoHttp | undefined)[]) {
-  return resultados.map((r) => {
-    if (r === undefined) return 'sem resposta'
-    return r.tipo === 'RESPONDEU' ? `RESPONDEU ${r.resposta.status}` : `FALHOU ${r.status}`
-  })
-}
 
 describe('Retry-After', () => {
   for (const status of [429, 503]) {
@@ -179,5 +157,88 @@ describe('uma loja, uma conexão, uma identidade', () => {
       loja.pedidos.map((p) => p.caminho),
       ['/a'],
     )
+  })
+})
+
+describe('uma identidade por cliente, em todas as chamadas', () => {
+  test('chamadas seguidas mantêm o navegador e os cookies', async () => {
+    await using loja = await abrirLojaDeTeste(({ caminho }) =>
+      caminho === '/0'
+        ? { status: 200, cabecalhos: { 'set-cookie': 'visita=1; Path=/' } }
+        : { status: 200 },
+    )
+    const cliente = clienteCrawlee(OPCOES)
+    for (let chamada = 0; chamada < 8; chamada++) {
+      await cliente.buscar([get(loja.url(`/${chamada}`))], async () => undefined)
+    }
+    assert.equal(loja.pedidos.length, 8)
+    assert.equal(new Set(loja.pedidos.map((p) => p.cabecalhos['user-agent'])).size, 1)
+    assert.deepEqual(
+      loja.pedidos.map((p) => p.cabecalhos.cookie),
+      [undefined, ...Array.from({ length: 7 }, () => 'visita=1')],
+    )
+  })
+
+  test('o mesmo pedido é feito de novo numa segunda chamada', async () => {
+    await using loja = await abrirLojaDeTeste(() => ({ status: 200 }))
+    const cliente = clienteCrawlee(OPCOES)
+    const respondidos: number[] = []
+    for (let chamada = 0; chamada < 2; chamada++) {
+      await cliente.buscar([get(loja.url('/a'))], async (indice) => {
+        respondidos.push(indice)
+      })
+    }
+    assert.deepEqual(respondidos, [0, 0])
+    assert.equal(loja.pedidos.length, 2)
+  })
+
+  test('uma segunda chamada ao mesmo tempo é recusada', async () => {
+    await using loja = await abrirLojaDeTeste(() => ({ status: 200 }))
+    const cliente = clienteCrawlee(OPCOES)
+    const primeira = cliente.buscar([get(loja.url('/a'))], async () => undefined)
+    await assert.rejects(
+      cliente.buscar([get(loja.url('/b'))], async () => undefined),
+      /já está numa chamada/,
+    )
+    await primeira
+  })
+})
+
+describe('teto de bytes por resposta', () => {
+  const teto = { ...OPCOES, tetoBytes: 1000 }
+  const latim = { 'content-type': 'application/json; charset=ISO-8859-1' }
+  const casos = [
+    { nome: 'corpo grande', roteada: { status: 200, corpo: 'a'.repeat(1001) } },
+    {
+      nome: 'corpo comprimido pequeno que descomprime grande',
+      roteada: {
+        status: 200,
+        cabecalhos: { ...latim, 'content-encoding': 'gzip' },
+        corpo: gzipSync('a'.repeat(200_000)),
+      },
+    },
+    { nome: 'corpo grande de um erro 500', roteada: { status: 500, corpo: 'a'.repeat(5000) } },
+  ]
+
+  for (const { nome, roteada } of casos) {
+    test(`${nome} falha sem repetir`, async () => {
+      await using loja = await abrirLojaDeTeste(() => roteada)
+      const [resultado] = await buscar([get(loja.url('/a'))], teto)
+      assert.ok(resultado?.tipo === 'FALHOU')
+      assert.match(resultado.detalhe, /teto de 1000 bytes/)
+      assert.equal(loja.pedidos.length, 1)
+    })
+  }
+
+  test('um corpo no limite chega inteiro, descomprimido e em UTF-8', async () => {
+    const corpo = 'ç'.repeat(1000)
+    await using loja = await abrirLojaDeTeste(() => ({
+      status: 200,
+      cabecalhos: { ...latim, 'content-encoding': 'gzip' },
+      corpo: gzipSync(Buffer.from(corpo, 'latin1')),
+    }))
+    const [resultado] = await buscar([get(loja.url('/a'))], teto)
+    assert.ok(resultado?.tipo === 'RESPONDEU')
+    assert.equal(resultado.resposta.corpo, corpo)
   })
 })

@@ -1,0 +1,22 @@
+www.condec.com.br · GET /web_api/products?ean=2000000000011,2000000000012&limit=1 · 2026-11-25
+HTTP 200
+content-type: application/json; charset=ISO-8859-1
+
+{
+  "paging": {
+    "total": 4
+  },
+  "Products": [
+    {
+      "Product": {
+        "ean": "2000000000012",
+        "price": "20.90",
+        "promotional_price": "10.90",
+        "available": "1",
+        "url": {
+          "https": "https://www.condec.com.br/produto-inventado-1"
+        }
+      }
+    }
+  ]
+}
