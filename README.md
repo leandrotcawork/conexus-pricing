@@ -180,8 +180,10 @@ npx neon triggers list
 npx neon triggers delete <id do gatilho>
 ```
 
-A rodada fica em `precos.rodada`, com a situação, as contagens por situação e os avisos. Entregar o
-mesmo horário outra vez não a duplica. Uma rodada para de pedir à loja aos 13 minutos. O que não coube
+A rodada fica em `precos.rodada`, com a situação, as contagens por situação e os avisos. Uma rodada
+sem nenhum `OK` e com algum `ERRO` fecha como `FALHOU`, com o aviso `NENHUM_OK`: ela não vira preço
+atual nem base de comparação, e a loja é perguntada de novo na rodada seguinte. Entregar o mesmo
+horário outra vez não a duplica. Uma rodada para de pedir à loja aos 13 minutos. O que não coube
 fica para a entrega seguinte, que o Neon faz sozinho depois da resposta 503.
 
 ## Gravar as respostas de uma loja
