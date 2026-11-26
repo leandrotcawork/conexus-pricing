@@ -91,4 +91,23 @@ describe('a gravação do catálogo', () => {
     })
     assert.deepEqual(await noBanco(), antes)
   })
+
+  // 6 parâmetros por linha: acima disto um comando só passaria dos 65535 do protocolo
+  const ALEM_DO_LIMITE = Math.floor(65_535 / 6) + 1_000
+  const muitos = Array.from({ length: ALEM_DO_LIMITE }, (_, i) => item(String(100_000 + i)))
+
+  test('uma recusa no fim de uma carga grande não grava nem o começo', async () => {
+    const antes = await noBanco()
+    const ultimo = muitos.at(-1)
+    assert.ok(ultimo)
+    const repetido = gravarCatalogo(dono, [...muitos, ultimo])
+    await assert.rejects(repetido, { message: 'não consegui gravar o catálogo: 21000' })
+    assert.deepEqual(await noBanco(), antes)
+  })
+
+  test('uma carga acima do limite de parâmetros do protocolo entra inteira e repete sem criar linha', async () => {
+    const antes = (await noBanco()).length
+    assert.equal(await gravarCatalogo(dono, muitos), antes + muitos.length)
+    assert.equal(await gravarCatalogo(dono, muitos), antes + muitos.length)
+  })
 })
