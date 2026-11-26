@@ -53,14 +53,16 @@ const PRODUTOS: readonly Produto[] = [
   [115, 'SEM EAN', null, null, 'S'],
 ]
 
-// código, nome, pai, grau, analítico, ativo; o filho vem antes do pai, e há uma raiz com o
-// marcador de "sem pai" do Sankhya e outra com o pai nulo
+// código, nome, pai, grau, analítico, ativo; o filho vem antes do pai, há uma raiz com o
+// marcador de "sem pai" do Sankhya e outra com o pai nulo, e o 30 é inativo e aponta para um pai
+// que não existe
 const GRUPOS: readonly Valor[][] = [
   [21, 'Folha dois', 20, 3, 'S', 'N'],
   [10, '  Folha um  ', 1, 2, 'S', 'S'],
   [20, 'Subgrupo', 1, 2, 'N', 'S'],
   [1, 'Raiz inventada', -999_999_999, 1, 'N', 'S'],
   [2, 'Outra raiz inventada', null, 1, 'S', 'S'],
+  [30, 'Inativos inventado', 900, 2, 'S', 'N'],
 ]
 
 // código, meses atrás em que a descrição passou a valer, descrição

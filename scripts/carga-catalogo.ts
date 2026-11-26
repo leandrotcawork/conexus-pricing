@@ -8,7 +8,7 @@ import { gravarCatalogo } from '../src/banco/catalogo.ts'
 import { abrirBanco, fecharBanco } from '../src/banco/conexao.ts'
 import { configDaCarga } from '../src/config.ts'
 import type { Grupo } from '../src/dominio/grupo.ts'
-import { conferirGrupos } from '../src/dominio/grupo.ts'
+import { conferirGrupos, enraizarInativosSemPai } from '../src/dominio/grupo.ts'
 import { CodGrupo, Codprod, centavosDeReais, Ean } from '../src/dominio/marcas.ts'
 import type { ItemDoRecorte } from '../src/dominio/recorte.ts'
 import { recorteR3 } from '../src/dominio/recorte.ts'
@@ -172,7 +172,7 @@ async function lerSankhya({ oracle, esquema }: ReturnType<typeof configDaCarga>)
 
 /**
  * Um pai ou um grupo de produto que não existe na árvore recusa a carga inteira, com a contagem: a
- * chave estrangeira recusaria sem dizer quantos.
+ * chave estrangeira recusaria sem dizer quantos. Os inativos sem pai já chegam como raiz.
  */
 function conferir(grupos: readonly Grupo[], itens: readonly ItemDoRecorte[]) {
   const contagens = conferirGrupos(
@@ -190,6 +190,7 @@ function conferir(grupos: readonly Grupo[], itens: readonly ItemDoRecorte[]) {
 
 type Gravado = ReturnType<typeof conferir> & {
   readonly grupos: number
+  readonly inativosEnraizados: number
   readonly linhasNoBanco: number
 }
 
@@ -206,6 +207,7 @@ function resumo(itens: readonly ItemDoRecorte[], gravado: Gravado): string {
     `sem nosso preço: ${semPreco}`,
     ...classes,
     `grupos de produto: ${gravado.grupos}`,
+    `grupos inativos de pai inexistente gravados como raiz: ${gravado.inativosEnraizados}`,
     `produtos sem grupo: ${gravado.produtosSemGrupo}`,
     `produtos em grupo sintético: ${gravado.produtosEmGrupoSintetico}`,
     `linhas em precos.produto: ${gravado.linhasNoBanco}`,
@@ -214,16 +216,18 @@ function resumo(itens: readonly ItemDoRecorte[], gravado: Gravado): string {
 
 async function carregar(): Promise<void> {
   const config = configDaCarga()
-  const { produtos, movimentos, grupos } = await lerSankhya(config)
+  const { produtos, movimentos, grupos: lidos } = await lerSankhya(config)
   const itens = recorteR3(produtos, movimentos)
   if (itens.length === 0) {
     throw new Error('o recorte veio vazio e nada foi gravado; confira SANKHYA_ORACLE_SCHEMA')
   }
+  const { grupos, inativosEnraizados } = enraizarInativosSemPai(lidos)
   const contagens = conferir(grupos, itens)
   const banco = abrirBanco(config.urlDoDono)
   try {
     const linhasNoBanco = await gravarCatalogo(banco, { grupos, itens })
-    console.log(resumo(itens, { ...contagens, grupos: grupos.length, linhasNoBanco }))
+    const gravado = { ...contagens, grupos: grupos.length, inativosEnraizados, linhasNoBanco }
+    console.log(resumo(itens, gravado))
   } finally {
     await fecharBanco(banco)
   }
