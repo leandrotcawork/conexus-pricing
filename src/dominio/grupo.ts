@@ -83,6 +83,21 @@ export function resumirGrupos(
     .map(({ grupo }) => grupo)
 }
 
+/**
+ * Um grupo inativo cujo pai não existe é um resto que o Sankhya guarda: vira raiz, para não parar a
+ * carga. O ativo fica como veio, e a conferência o recusa.
+ */
+export function enraizarInativosSemPai(grupos: readonly Grupo[]) {
+  const codigos = new Set(grupos.map(({ codigo }) => codigo))
+  function inativoSemPai({ ativo, pai }: Grupo): boolean {
+    return !ativo && pai !== null && !codigos.has(pai)
+  }
+  return {
+    grupos: grupos.map((grupo) => (inativoSemPai(grupo) ? { ...grupo, pai: null } : grupo)),
+    inativosEnraizados: grupos.filter(inativoSemPai).length,
+  }
+}
+
 /** O que a carga conta antes de gravar: o que a impede e o que só se informa. */
 export function conferirGrupos(
   grupos: readonly Grupo[],

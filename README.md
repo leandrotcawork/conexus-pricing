@@ -195,10 +195,12 @@ alguém a roda de novo, à mão.
 
 No Sankhya ela só faz `SELECT`, numa transação `READ ONLY` que termina em `rollback`. A saída são só
 contagens: produtos do recorte, quantos estão sem nosso preço, cada classe com o acumulado, grupos de
-produto, produtos sem grupo, produtos em grupo sintético e o total de linhas em `precos.produto`.
+produto, grupos inativos de pai inexistente gravados como raiz, produtos sem grupo, produtos em grupo
+sintético e o total de linhas em `precos.produto`.
 
-Se um grupo aponta para um pai que não existe no `TGFGRU`, ou um produto do recorte aponta para um
-grupo que não existe, a carga não grava nada e diz quantos são.
+Se um grupo ativo aponta para um pai que não existe no `TGFGRU`, ou um produto do recorte aponta para
+um grupo que não existe, a carga não grava nada e diz quantos são. Um grupo inativo (`ATIVO` = `N`)
+de pai inexistente não para a carga: é gravado como raiz, com o pai nulo, e a saída diz quantos foram.
 
 ### O recorte
 
@@ -211,7 +213,7 @@ grupo que não existe, a carga não grava nada e diz quantos são.
 | Curva ABC | Produtos em ordem de venda líquida: A com acumulado anterior abaixo de 80% do total, B abaixo de 95%, C no resto. Sem venda líquida positiva, é C e não entra no total |
 | Recorte | Classes A e B, mais os da classe C com compra |
 | Nosso preço | Tabela 0, na versão vigente mais recente que contém o produto; preço zero é ausência |
-| Grupo | `TGFPRO.CODGRUPOPROD`. A árvore `TGFGRU` é gravada inteira, com o pai de cada grupo. Pai nulo ou `-999999999`, o "sem pai" do Sankhya, é raiz |
+| Grupo | `TGFPRO.CODGRUPOPROD`. A árvore `TGFGRU` é gravada inteira, com o pai de cada grupo. Pai nulo ou `-999999999`, o "sem pai" do Sankhya, é raiz. Grupo inativo de pai inexistente também é gravado como raiz |
 | Gravado no produto | A classe da curva e a venda líquida de 12 meses, o peso do índice ponderado; negativa vira zero |
 
 ### Antes de rodar

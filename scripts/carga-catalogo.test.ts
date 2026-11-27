@@ -137,7 +137,8 @@ sem nosso preço: 5
 classe A: 2 (acumulado 2)
 classe B: 2 (acumulado 4)
 classe C: 4 (acumulado 8)
-grupos de produto: 5
+grupos de produto: 6
+grupos inativos de pai inexistente gravados como raiz: 1
 produtos sem grupo: 1
 produtos em grupo sintético: 2
 linhas em precos.produto: 8
@@ -163,6 +164,8 @@ const ARVORE = [
   [10, 'Folha um', 1, 2, true, true],
   [20, 'Subgrupo', 1, 2, false, true],
   [21, 'Folha dois', 20, 3, true, false],
+  // no Sankhya o pai dele não existe: inativo, é gravado como raiz
+  [30, 'Inativos inventado', null, 2, true, false],
 ] as const
 
 let sankhya: Awaited<ReturnType<typeof criarSankhyaDescartavel>>
@@ -175,6 +178,20 @@ function carregar() {
 
 function catalogo() {
   return banco.select().from(produto).orderBy(asc(produto.codprod))
+}
+
+function arvore() {
+  return banco.select().from(grupo).orderBy(asc(grupo.codigo))
+}
+
+async function gravado() {
+  return { grupos: await arvore(), produtos: await catalogo() }
+}
+
+async function recusaSemGravar(contagens: RegExp): Promise<void> {
+  const antes = await gravado()
+  await assert.rejects(carregar(), contagens)
+  assert.deepEqual(await gravado(), antes)
 }
 
 async function resumido() {
@@ -216,9 +233,9 @@ describe('scripts/carga-catalogo.ts contra o Oracle local', { skip: SEM_ORACLE }
   })
 
   test('grava a árvore de grupos e, no produto, o grupo, a classe e a venda', async () => {
-    const arvore = await banco.select().from(grupo).orderBy(asc(grupo.codigo))
+    const grupos = await arvore()
     assert.deepEqual(
-      arvore.map((g) => [g.codigo, g.nome, g.pai, g.grau, g.analitico, g.ativo]),
+      grupos.map((g) => [g.codigo, g.nome, g.pai, g.grau, g.analitico, g.ativo]),
       ARVORE,
     )
     const linhas = await catalogo()
@@ -248,16 +265,19 @@ describe('scripts/carga-catalogo.ts contra o Oracle local', { skip: SEM_ORACLE }
     await sankhya.mudar('DELETE FROM TGFCAB WHERE NUNOTA = 900')
   })
 
-  test('um grupo que não existe recusa a carga com as contagens, sem gravar nada', async () => {
-    const antes = await catalogo()
-    await sankhya.mudar('UPDATE TGFGRU SET CODGRUPAI = 998 WHERE CODGRUPOPROD = 21')
-    await sankhya.mudar('UPDATE TGFPRO SET CODGRUPOPROD = 999 WHERE CODPROD IN (105, 106)')
-    await assert.rejects(
-      carregar(),
-      /nada foi gravado: grupos com um pai que não existe no TGFGRU: 1; produtos do recorte num grupo que não existe: 2/,
+  test('um grupo ativo de pai inexistente recusa a carga, sem gravar nada', async () => {
+    await sankhya.mudar('UPDATE TGFGRU SET CODGRUPAI = 998 WHERE CODGRUPOPROD = 10')
+    await recusaSemGravar(
+      /nada foi gravado: grupos com um pai que não existe no TGFGRU: 1; produtos do recorte num grupo que não existe: 0/,
     )
-    assert.deepEqual(await catalogo(), antes)
-    await sankhya.mudar('UPDATE TGFGRU SET CODGRUPAI = 20 WHERE CODGRUPOPROD = 21')
+    await sankhya.mudar('UPDATE TGFGRU SET CODGRUPAI = 1 WHERE CODGRUPOPROD = 10')
+  })
+
+  test('um produto num grupo que não existe recusa a carga, sem gravar nada', async () => {
+    await sankhya.mudar('UPDATE TGFPRO SET CODGRUPOPROD = 999 WHERE CODPROD IN (105, 106)')
+    await recusaSemGravar(
+      /nada foi gravado: grupos com um pai que não existe no TGFGRU: 0; produtos do recorte num grupo que não existe: 2/,
+    )
     await sankhya.mudar('UPDATE TGFPRO SET CODGRUPOPROD = 10 WHERE CODPROD = 105')
     await sankhya.mudar('UPDATE TGFPRO SET CODGRUPOPROD = 21 WHERE CODPROD = 106')
   })
